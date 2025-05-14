@@ -1,9 +1,11 @@
+#BACKEND
+
 import psycopg2
 import os
 from dotenv import load_dotenv
 import pandas as pd
 
-# Load environment variables from .env file
+# Load environment variables from .env file 
 load_dotenv()
 
 def connect_to_supabase():
