@@ -1,491 +1,308 @@
 import streamlit as st
 import pandas as pd
 import datetime
-import calendar
 from datetime import timedelta
-import random
+import calendar
 
 # Configuración de la página
 st.set_page_config(page_title="Agenda de Turnos", layout="wide")
 
-# Datos de ejemplo para los turnos
-class BaseDeTurnos:
-    def __init__(self):
-        self.turnos = []
-        # Generar algunos turnos de ejemplo
-        self._generar_turnos_ejemplo()
+# Ocultar elementos por defecto de Streamlit
+hide_streamlit_style = """
+<style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    .block-container {
+        padding-top: 1rem;
+        padding-bottom: 0rem;
+    }
+    .element-container:has(iframe[height="0"]) {
+        display: none;
+    }
+    div[data-testid="metric-container"] {
+        display: none;
+    }
+    .stAlert {
+        display: none;
+    }
     
-    def _generar_turnos_ejemplo(self):
-        # Crear turnos aleatorios para este mes
-        nombres = ["María López", "Carlos Gómez", "Laura Martínez", "Juan Perez", 
-                  "Ana Rodríguez", "Pedro Sánchez", "Lucía García", "Miguel Fernández"]
-        
-        # Fecha actual
-        hoy = datetime.date.today()
-        primer_dia_mes = datetime.date(hoy.year, hoy.month, 1)
-        
-        # Generar 15 turnos aleatorios
-        for _ in range(15):
-            # Día aleatorio en este mes
-            dia = random.randint(1, calendar.monthrange(hoy.year, hoy.month)[1])
-            fecha = datetime.date(hoy.year, hoy.month, dia)
-            
-            # No generar turnos en el pasado
-            if fecha < hoy:
-                continue
-                
-            hora = random.randint(9, 17)
-            minutos = random.choice([0, 30])
-            horario = f"{hora:02d}:{minutos:02d}"
-            
-            # Color aleatorio
-            color = random.choice(["#FF7F7F", "#7FFFFF", "#FFBF7F"])
-            
-            self.turnos.append({
-                "paciente": random.choice(nombres),
-                "fecha": fecha,
-                "horario": horario,
-                "color": color
-            })
-            
-        # Añadir un turno específico para Juan Perez
-        if hoy.day < 28:  # Solo si no estamos a fin de mes
-            self.turnos.append({
-                "paciente": "Juan Perez",
-                "fecha": hoy + timedelta(days=2),  # 2 días después de hoy
-                "horario": "14:00",
-                "color": "#FF7F7F",  # Rojo claro
-                "proximo": True
-            })
+    /* Cambiar color del botón primary a azul */
+    .stButton > button[kind="primary"] {
+        background-color: #1976d2 !important;
+        border-color: #1976d2 !important;
+        color: white !important;
+    }
+    .stButton > button[kind="primary"]:hover {
+        background-color: #1565c0 !important;
+        border-color: #1565c0 !important;
+    }
     
-    def agregar_turno(self, paciente, fecha, horario):
-        """Añade un nuevo turno a la agenda"""
-        self.turnos.append({
-            "paciente": paciente,
-            "fecha": fecha,
-            "horario": horario,
-            "color": random.choice(["#FF7F7F", "#7FFFFF", "#FFBF7F"])
-        })
+    /* Cambiar color del date picker */
+    .stDateInput > div > div > input {
+        border-color: #1976d2 !important;
+    }
     
-    def obtener_turnos_del_mes(self, anio, mes):
-        """Retorna todos los turnos del mes especificado"""
-        return [t for t in self.turnos if t["fecha"].year == anio and t["fecha"].month == mes]
+    /* Cambiar color de elementos activos del calendario */
+    div[data-baseweb="calendar"] [aria-selected="true"] {
+        background-color: #1976d2 !important;
+    }
     
-    def obtener_proximo_turno(self):
-        """Obtiene el próximo turno programado"""
-        hoy = datetime.date.today()
-        turnos_futuros = [t for t in self.turnos if t["fecha"] >= hoy]
-        if not turnos_futuros:
-            return None
-        
-        # Ordenar por fecha y hora
-        turnos_ordenados = sorted(turnos_futuros, 
-                                 key=lambda t: (t["fecha"], t["horario"]))
-        
-        # Buscar primero si hay alguno marcado como próximo
-        for turno in turnos_ordenados:
-            if turno.get("proximo", False):
-                return turno
-                
-        # Si no, tomar el primero de la lista ordenada
-        return turnos_ordenados[0] if turnos_ordenados else None
-
-# Inicializar la base de datos
-if 'db' not in st.session_state:
-    st.session_state.db = BaseDeTurnos()
-
-# Inicializar estados de sesión
-if 'mostrar_seleccion_paciente' not in st.session_state:
-    st.session_state.mostrar_seleccion_paciente = False
-if 'paciente_seleccionado' not in st.session_state:
-    st.session_state.paciente_seleccionado = None
-if 'header_clicked' not in st.session_state:
-    st.session_state.header_clicked = False
-
-# Lista de pacientes disponibles
-pacientes_disponibles = [
-    "María López", "Carlos Gómez", "Laura Martínez", "Juan Perez", 
-    "Ana Rodríguez", "Pedro Sánchez", "Lucía García", "Miguel Fernández",
-    "Roberto Díaz", "Carmen Vega", "Daniel Torres", "Sofia Castro"
-]
-
-# Funciones auxiliares
-def obtener_dias_del_mes(anio, mes):
-    """Retorna una lista con todos los días del mes"""
-    _, dias_en_mes = calendar.monthrange(anio, mes)
-    return [datetime.date(anio, mes, dia) for dia in range(1, dias_en_mes + 1)]
-
-def obtener_semana_inicio(dias):
-    """Determina el primer día de la primera semana a mostrar"""
-    primer_dia = dias[0]
-    # Retroceder hasta el lunes antes del primer día del mes
-    dias_atras = primer_dia.weekday()
-    return primer_dia - datetime.timedelta(days=dias_atras)
-
-def generar_calendario(anio, mes):
-    """Genera la estructura del calendario mensual"""
-    dias_del_mes = obtener_dias_del_mes(anio, mes)
-    fecha_inicio = obtener_semana_inicio(dias_del_mes)
+    div[data-baseweb="calendar"] [data-date]:hover {
+        background-color: #e3f2fd !important;
+    }
     
-    # Generar 6 semanas (42 días) a partir de fecha_inicio
-    todas_fechas = [fecha_inicio + datetime.timedelta(days=i) for i in range(42)]
-    
-    # Dividir en semanas
-    semanas = [todas_fechas[i:i+7] for i in range(0, len(todas_fechas), 7)]
-    return semanas
+    /* Cambiar color de selectbox cuando está activo */
+    .stSelectbox > div > div > div {
+        border-color: #1976d2 !important;
+    }
+</style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
-def mostrar_seleccion_paciente():
-    """Cambia el estado para mostrar la selección de paciente"""
-    st.session_state.mostrar_seleccion_paciente = True
+# Inicializar session state para almacenar turnos
+if 'turnos' not in st.session_state:
+    st.session_state.turnos = []
 
-def seleccionar_paciente(paciente):
-    """Establece el paciente seleccionado"""
-    st.session_state.paciente_seleccionado = paciente
-    st.session_state.mostrar_seleccion_paciente = False
-
-# Estilos personalizados
+# CSS personalizado para mejorar la apariencia
 st.markdown("""
 <style>
-    .calendario-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 20px;
+    .main-title {
+        font-size: 2.5rem;
+        font-weight: bold;
+        color: #333;
+        margin-bottom: 1rem;
+        margin-top: 0rem;
     }
-    
-    .vista-selector {
-        display: inline-flex;
-        border: 2px solid black;
-        border-radius: 50px;
-        overflow: hidden;
-    }
-    
-    .vista-selector button {
-        background-color: white;
-        border: none;
-        padding: 8px 20px;
-        cursor: pointer;
-    }
-    
-    .vista-selector button.active {
-        background-color: #ccc;
-    }
-    
-    .container-calendario {
-        display: flex;
-        flex-direction: column;
-        border: 1px solid #ddd;
-        border-radius: 8px;
-        overflow: hidden;
-    }
-    
-    .dias-semana {
-        display: flex;
+    .form-container {
         background-color: #f8f9fa;
+        padding: 2rem;
+        border-radius: 10px;
+        border: 2px solid #e9ecef;
+        margin-bottom: 2rem;
     }
-    
-    .dias-semana div {
-        flex: 1;
-        text-align: center;
-        padding: 10px;
-        font-weight: bold;
-    }
-    
-    .calendario-grid {
-        display: flex;
-        flex-direction: column;
-    }
-    
-    .semana {
-        display: flex;
-        border-top: 1px solid #ddd;
-    }
-    
-    .dia {
-        flex: 1;
-        min-height: 100px;
-        border-right: 1px solid #ddd;
-        padding: 5px;
-        position: relative;
-    }
-    
-    .dia:last-child {
-        border-right: none;
-    }
-    
-    .numero-dia {
-        text-align: right;
-        margin-bottom: 5px;
-        font-weight: bold;
-    }
-    
-    .otro-mes {
-        background-color: #f9f9f9;
-        color: #aaa;
-    }
-    
-    .dia-actual {
-        background-color: #ffeeee;
-    }
-    
-    .dia-actual .numero-dia {
-        color: white;
-        background-color: #ff6666;
-        width: 24px;
-        height: 24px;
-        border-radius: 50%;
-        display: inline-flex;
-        justify-content: center;
-        align-items: center;
-    }
-    
-    .evento {
-        margin: 2px 0;
-        padding: 2px 5px;
-        border-radius: 3px;
-        font-size: 12px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-    
-    .formulario-container {
-        border: 1px solid #ddd;
-        padding: 20px;
-        border-radius: 8px;
-        margin-bottom: 20px;
-    }
-    
-    .formulario-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 15px;
-        cursor: pointer;
-    }
-    
-    .triangulo-abajo {
-        width: 0;
-        height: 0;
-        border-left: 8px solid transparent;
-        border-right: 8px solid transparent;
-        border-top: 12px solid black;
-        cursor: pointer;
-    }
-    
-    .proximo-turno-container {
-        border: 2px solid #ddd;
-        border-radius: 50px;
-        padding: 10px 20px;
-        display: flex;
-        align-items: center;
-        margin-bottom: 30px;
-    }
-    
-    .circulo-numero {
-        width: 40px;
-        height: 40px;
-        background-color: #e74c3c;
-        border-radius: 50%;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        color: white;
-        font-weight: bold;
-        margin-right: 15px;
-    }
-    
-    .btn-agregar {
-        background-color: #e74c3c;
-        color: white;
-        border: none;
-        padding: 10px 30px;
-        border-radius: 25px;
-        font-size: 16px;
-        cursor: pointer;
-        transition: background-color 0.3s;
-    }
-    
-    .btn-agregar:hover {
-        background-color: #c0392b;
-    }
-    
-    /* Estilo para el botón toggle */
-    div[data-testid="stButton"] button[kind="secondary"] {
-        background-color: transparent;
-        border: none;
-        color: black;
-        position: absolute;
-        top: 0;
-        width: 100%;
-        height: 100%;
-        left: 0;
-        opacity: 0;
-        z-index: 10;
-    }
-    
-    /* Hacer que el triangulo responda visualmente al clic */
-    .formulario-header:hover .triangulo-abajo {
-        border-top-color: #555;
-    }
-    
-    .lista-pacientes {
-        margin-top: 0;
-        border: 1px solid #ddd;
-        border-radius: 0 0 5px 5px;
-        padding: 10px;
+    .calendar-container {
         background-color: white;
+        padding: 0rem;
+        border-radius: 10px;
+        border: none;
     }
-    
-    .paciente-item {
-        padding: 10px 15px;
-        background-color: #f8f9fa;
-        border-radius: 5px;
-        margin-bottom: 5px;
-        cursor: pointer;
-        transition: background-color 0.2s;
+    .turno-card {
+        background-color: #e3f2fd;
+        padding: 1rem;
+        border-radius: 8px;
+        border-left: 4px solid #1976d2;
+        margin-bottom: 1rem;
     }
-    
-    .paciente-item:hover {
-        background-color: #e2e6ea;
+    .next-appointment {
+        background-color: #e8f4fd;
+        padding: 1rem;
+        border-radius: 10px;
+        border: 1px solid #64b5f6;
+        margin-top: 2rem;
     }
 </style>
 """, unsafe_allow_html=True)
 
 # Título principal
-st.markdown("<h1 style='font-size: 36px; font-weight: bold;'>agenda de turnos</h1>", unsafe_allow_html=True)
+st.markdown('<h1 class="main-title">Agenda de turnos</h1>', unsafe_allow_html=True)
 
-# Contenedor principal
-col1, col2 = st.columns([2, 3])
+# Layout en columnas
+col1, col2 = st.columns([1, 2])
 
 with col1:
-    # Formulario para agregar turno con flecha desplegable
-    formulario_container = st.container()
-    with formulario_container:
-        st.markdown("""
-        <div class="formulario-container">
-            <div class="formulario-header">
-                <h2 style='font-size: 28px; margin: 0;'>agregar turno</h2>
-                <div class="triangulo-abajo"></div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-        
-        # Botón invisible sobre el encabezado para detectar clics
-        if st.button("Mostrar/Ocultar lista de pacientes", key="toggle_lista"):
-            st.session_state.mostrar_seleccion_paciente = not st.session_state.mostrar_seleccion_paciente
-            st.rerun()
+    # Formulario para agregar turno
+    st.subheader("agregar turno")
     
-    # Si hay un paciente seleccionado, mostrar el formulario para completar el turno
-    if st.session_state.paciente_seleccionado:
-            with st.form("formulario_turno"):
-                st.subheader(f"Agendar para: {st.session_state.paciente_seleccionado}")
-                col_fecha, col_hora = st.columns(2)
-                with col_fecha:
-                    fecha = st.date_input("fecha:", format="DD/MM/YYYY")
-                with col_hora:
-                    horario = st.text_input("horario:", placeholder="HH:MM")
-                
-                # Botón de agregar
-                submitted = st.form_submit_button("AGREGAR", use_container_width=True)
-                if submitted:
-                    if horario:
-                        st.session_state.db.agregar_turno(st.session_state.paciente_seleccionado, fecha, horario)
-                        st.success(f"Turno agendado para {st.session_state.paciente_seleccionado}")
-                        # Restablecer el paciente seleccionado
-                        st.session_state.paciente_seleccionado = None
-                        st.rerun()
-                    else:
-                        st.error("Por favor complete el horario")
+    # Selectbox para pacientes (puedes agregar más nombres aquí)
+    pacientes_disponibles = [
+        "Seleccionar paciente...",
+        "Juan Perez",
+        "María García",
+        "Carlos López",
+        "Ana Martínez",
+        "Pedro Rodríguez",
+        "Laura Fernández",
+        "Miguel Sánchez",
+        "Carmen Ruiz",
+        "Antonio Morales",
+        "Elena Jiménez"
+    ]
     
-    # Si se está mostrando la selección de paciente, mostrar la lista de pacientes
-    if st.session_state.mostrar_seleccion_paciente:
-        st.subheader("Seleccionar paciente:")
-        st.markdown('<div class="lista-pacientes">', unsafe_allow_html=True)
-        for paciente in pacientes_disponibles:
-            if st.button(paciente, key=f"btn_{paciente}", use_container_width=True):
-                seleccionar_paciente(paciente)
-                st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        # Botón para cancelar la selección
-        if st.button("Cancelar", use_container_width=True):
-            st.session_state.mostrar_seleccion_paciente = False
+    paciente_seleccionado = st.selectbox(
+        "nombre del paciente:",
+        pacientes_disponibles,
+        key="paciente_select"
+    )
+    
+    # Fecha del turno
+    fecha_turno = st.date_input(
+        "fecha:",
+        value=datetime.date.today(),
+        key="fecha_input"
+    )
+    
+    # Horarios disponibles
+    horarios_disponibles = [
+        "Seleccionar horario...",
+        "08:00", "08:30", "09:00", "09:30", "10:00", "10:30",
+        "11:00", "11:30", "12:00", "12:30", "13:00", "13:30",
+        "14:00", "14:30", "15:00", "15:30", "16:00", "16:30",
+        "17:00", "17:30", "18:00", "18:30", "19:00", "19:30"
+    ]
+    
+    horario_seleccionado = st.selectbox(
+        "horario:",
+        horarios_disponibles,
+        key="horario_select"
+    )
+    
+    # Botón para agregar turno
+    if st.button("AGREGAR", type="primary", use_container_width=True):
+        if (paciente_seleccionado != "Seleccionar paciente..." and 
+            horario_seleccionado != "Seleccionar horario..."):
+            
+            nuevo_turno = {
+                'paciente': paciente_seleccionado,
+                'fecha': fecha_turno,
+                'horario': horario_seleccionado,
+                'datetime': datetime.datetime.combine(fecha_turno, 
+                           datetime.time.fromisoformat(horario_seleccionado + ":00"))
+            }
+            st.session_state.turnos.append(nuevo_turno)
+            st.success(f"Turno agregado para {paciente_seleccionado}")
             st.rerun()
+        else:
+            st.error("Por favor complete todos los campos")
     
     # Próximo turno
-    proximo_turno = st.session_state.db.obtener_proximo_turno()
-    if proximo_turno:
-        st.markdown("""
-        <div class="proximo-turno-container">
-            <div class="circulo-numero">3</div>
-            <div style="font-size: 18px; font-weight: bold;">
-                {} {}
+    if st.session_state.turnos:
+        # Filtrar turnos futuros y ordenar por fecha/hora
+        turnos_futuros = [t for t in st.session_state.turnos if t['datetime'] >= datetime.datetime.now()]
+        if turnos_futuros:
+            proximo_turno = min(turnos_futuros, key=lambda x: x['datetime'])
+            
+            st.markdown('<div class="next-appointment">', unsafe_allow_html=True)
+            st.subheader("proximo turno")
+            dias_restantes = (proximo_turno['datetime'].date() - datetime.date.today()).days
+            st.markdown(f"""
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                <div style="background-color: #1976d2; color: white; border-radius: 50%; 
+                           width: 3rem; height: 3rem; display: flex; align-items: center; 
+                           justify-content: center; font-weight: bold; font-size: 1.2rem;">
+                    {dias_restantes if dias_restantes >= 0 else 0}
+                </div>
+                <div>
+                    <strong>{proximo_turno['horario']} {proximo_turno['paciente']}</strong><br>
+                    <small>{proximo_turno['fecha'].strftime('%d/%m/%Y')}</small>
+                </div>
             </div>
-        </div>
-        """.format(proximo_turno["horario"], proximo_turno["paciente"]), unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
 with col2:
-    # Selector de vista (Día/Mes)
-    st.markdown("""
-    <div style="text-align: right; margin-bottom: 20px;">
-        <div class="vista-selector">
-            <button>dia</button>
-            <button class="active">mes</button>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    # Calendario
+    st.markdown('<div class="calendar-container">', unsafe_allow_html=True)
     
-    # Obtener fecha actual
-    hoy = datetime.date.today()
-    mes_actual = hoy.month
-    anio_actual = hoy.year
+    # Controles del calendario
+    col_prev, col_month, col_next = st.columns([1, 3, 1])
     
-    # Obtener turnos del mes
-    turnos_del_mes = st.session_state.db.obtener_turnos_del_mes(anio_actual, mes_actual)
+    # Inicializar mes y año actual
+    if 'current_month' not in st.session_state:
+        st.session_state.current_month = datetime.date.today().month
+    if 'current_year' not in st.session_state:
+        st.session_state.current_year = datetime.date.today().year
     
-    # Crear calendario
-    semanas = generar_calendario(anio_actual, mes_actual)
+    with col_prev:
+        if st.button("◀", key="prev_month"):
+            if st.session_state.current_month == 1:
+                st.session_state.current_month = 12
+                st.session_state.current_year -= 1
+            else:
+                st.session_state.current_month -= 1
+            st.rerun()
     
-    # Nombres de los días de la semana
-    dias_semana = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"]
+    with col_month:
+        meses = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+                'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+        st.markdown(f"<h3 style='text-align: center;'>{meses[st.session_state.current_month]} {st.session_state.current_year}</h3>", 
+                   unsafe_allow_html=True)
     
-    # Encabezado de los días de la semana
-    st.markdown('<div class="dias-semana">' + 
-                ''.join([f'<div>{dia}</div>' for dia in dias_semana]) + 
-                '</div>', unsafe_allow_html=True)
+    with col_next:
+        if st.button("▶", key="next_month"):
+            if st.session_state.current_month == 12:
+                st.session_state.current_month = 1
+                st.session_state.current_year += 1
+            else:
+                st.session_state.current_month += 1
+            st.rerun()
     
     # Generar calendario
-    for semana in semanas:
-        html_semana = '<div class="semana">'
+    cal = calendar.monthcalendar(st.session_state.current_year, st.session_state.current_month)
+    
+    # Días de la semana
+    dias_semana = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
+    
+    # Crear encabezado del calendario
+    cols_header = st.columns(7)
+    for i, dia in enumerate(dias_semana):
+        with cols_header[i]:
+            st.markdown(f"<div style='text-align: center; font-weight: bold; color: #666;'>{dia}</div>", 
+                       unsafe_allow_html=True)
+    
+    # Crear días del calendario
+    for semana in cal:
+        cols_week = st.columns(7)
+        for i, dia in enumerate(semana):
+            with cols_week[i]:
+                if dia == 0:
+                    st.markdown("<div style='height: 80px;'></div>", unsafe_allow_html=True)
+                else:
+                    # Verificar si hay turnos en este día
+                    fecha_dia = datetime.date(st.session_state.current_year, st.session_state.current_month, dia)
+                    turnos_dia = [t for t in st.session_state.turnos if t['fecha'] == fecha_dia]
+                    
+                    # Determinar el color de fondo
+                    bg_color = "#fff"
+                    if fecha_dia == datetime.date.today():
+                        bg_color = "#e3f2fd"  # Azul claro para hoy
+                    
+                    # Crear contenido del día
+                    day_content = f"<div style='background-color: {bg_color}; padding: 0.5rem; border-radius: 5px; min-height: 80px; border: 1px solid #eee;'>"
+                    day_content += f"<div style='font-weight: bold; text-align: center;'>{dia}</div>"
+                    
+                    # Agregar turnos del día
+                    for turno in turnos_dia[:3]:  # Mostrar máximo 3 turnos
+                        color_turno = "#1976d2" if len(turnos_dia) == 1 else ["#1976d2", "#42a5f5", "#64b5f6"][turnos_dia.index(turno) % 3]
+                        day_content += f"<div style='background-color: {color_turno}; color: white; font-size: 0.7rem; padding: 2px 4px; margin: 2px 0; border-radius: 3px; text-align: center;'>{turno['horario']}</div>"
+                    
+                    if len(turnos_dia) > 3:
+                        day_content += f"<div style='font-size: 0.6rem; text-align: center; color: #666;'>+{len(turnos_dia)-3} más</div>"
+                    
+                    day_content += "</div>"
+                    st.markdown(day_content, unsafe_allow_html=True)
+    
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Mostrar lista de turnos
+if st.session_state.turnos:
+    st.subheader("Lista de Turnos")
+    
+    # Ordenar turnos por fecha y hora
+    turnos_ordenados = sorted(st.session_state.turnos, key=lambda x: x['datetime'])
+    
+    for i, turno in enumerate(turnos_ordenados):
+        col_turno, col_delete = st.columns([4, 1])
         
-        for dia in semana:
-            # Determinar si es del mes actual o no
-            es_otro_mes = dia.month != mes_actual
-            es_hoy = dia == hoy
-            
-            # Clases para el día
-            clases = []
-            if es_otro_mes:
-                clases.append("otro-mes")
-            if es_hoy:
-                clases.append("dia-actual")
-            
-            clase_dia = " ".join(clases)
-            
-            # Crear HTML para este día
-            html_dia = f'<div class="dia {clase_dia}">'
-            
-            # Número del día (sin mes)
-            html_dia += f'<div class="numero-dia">{dia.day}</div>'
-            
-            # Eventos para este día
-            eventos_del_dia = [t for t in turnos_del_mes if t["fecha"] == dia]
-            for evento in eventos_del_dia:
-                html_dia += f'<div class="evento" style="background-color: {evento["color"]};">{evento["horario"]} {evento["paciente"][:10]}</div>'
-            
-            html_dia += '</div>'
-            html_semana += html_dia
+        with col_turno:
+            st.markdown(f"""
+            <div class="turno-card">
+                <strong>{turno['paciente']}</strong><br>
+                📅 {turno['fecha'].strftime('%d/%m/%Y')} - 🕐 {turno['horario']}
+            </div>
+            """, unsafe_allow_html=True)
         
-        html_semana += '</div>'
-        st.markdown(html_semana, unsafe_allow_html=True)
+        with col_delete:
+            if st.button("🗑️", key=f"delete_{i}", help="Eliminar turno"):
+                st.session_state.turnos.remove(turno)
+                st.rerun()
