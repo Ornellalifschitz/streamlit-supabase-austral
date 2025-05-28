@@ -2,7 +2,7 @@ import streamlit as st
 
 # --- Page Configuration (Optional but Recommended) ---
 st.set_page_config(
-    page_title="Mind Link - Login",
+    page_title="Mind Link - Login 2",
     page_icon="🧠",
     layout="centered"  # "wide" or "centered"
 )
