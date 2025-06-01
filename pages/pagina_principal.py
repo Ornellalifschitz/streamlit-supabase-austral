@@ -48,9 +48,14 @@ st.markdown("""
         padding: 10px;
         border-radius: 5px;
         cursor: pointer;
+        border: 2px solid transparent;
+        background-color: #f8f9fa;
+        transition: all 0.3s ease;
     }
     .menu-item:hover {
-        background-color: #f0f0f0;
+        background-color: #e9ecef;
+        border-color: #002654;
+        transform: translateY(-2px);
     }
     .menu-icon {
         margin-right: 15px;
@@ -104,8 +109,31 @@ st.markdown("""
     header {visibility: hidden;}
     footer {visibility: hidden;}
     .block-container {padding-top: 0; padding-bottom: 0;}
+    
+    /* Estilo para botones de Streamlit personalizados */
+    .stButton > button {
+        width: 100%;
+        height: 60px;
+        background-color: #f8f9fa;
+        border: 2px solid transparent;
+        border-radius: 5px;
+        font-size: 22px;
+        color: #002654;
+        font-weight: normal;
+        transition: all 0.3s ease;
+    }
+    .stButton > button:hover {
+        background-color: #e9ecef;
+        border-color: #002654;
+        transform: translateY(-2px);
+    }
 </style>
 """, unsafe_allow_html=True)
+
+# Función para navegar a diferentes páginas
+def navigate_to_page(page_name):
+    st.session_state.current_page = page_name
+    st.switch_page(f"pages/{page_name}.py")
 
 # Datos de ejemplo para el calendario de turnos (mantenemos esta función por si se necesita más adelante)
 def get_sample_appointments():
@@ -183,25 +211,46 @@ with col_calendar:
     
     st.markdown('</div>', unsafe_allow_html=True)
 
-# Columna del menú (derecha)
+# Columna del menú (derecha) - MODIFICADA PARA USAR BOTONES DE STREAMLIT
 with col_menu:
-    st.markdown("""
-    <div class="menu-container">
-        <a href="./turnos" target="_self" class="menu-item">
-            <div class="menu-icon">➕</div>
-            <div>turnos</div>
-        </a>
-        <a href="./pacientes" target="_self" class="menu-item">
-            <div class="menu-icon">👥</div>
-            <div>pacientes</div>
-        </a>
-        <a href="./ingresos" target="_self" class="menu-item">
-            <div class="menu-icon">💰</div>
-            <div>ingresos</div>
-        </a>
-        <a href="./fichas_medicas" target="_self" class="menu-item">
-            <div class="menu-icon">📋</div>
-            <div>fichas medicas</div>
-        </a>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown('<div class="menu-container">', unsafe_allow_html=True)
+    
+    # Botón para Turnos
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        st.markdown('<div style="font-size: 28px; text-align: center; margin-top: 8px;">➕</div>', unsafe_allow_html=True)
+    with col2:
+        if st.button("turnos", key="btn_turnos", use_container_width=True):
+            navigate_to_page("agenda_turnos")
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # Botón para Pacientes
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        st.markdown('<div style="font-size: 28px; text-align: center; margin-top: 8px;">👥</div>', unsafe_allow_html=True)
+    with col2:
+        if st.button("pacientes", key="btn_pacientes", use_container_width=True):
+            navigate_to_page("pacientes")
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # Botón para Ingresos
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        st.markdown('<div style="font-size: 28px; text-align: center; margin-top: 8px;">💰</div>', unsafe_allow_html=True)
+    with col2:
+        if st.button("ingresos", key="btn_ingresos", use_container_width=True):
+            navigate_to_page("ingresos")
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # Botón para Fichas Médicas
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        st.markdown('<div style="font-size: 28px; text-align: center; margin-top: 8px;">📋</div>', unsafe_allow_html=True)
+    with col2:
+        if st.button("fichas medicas", key="btn_fichas", use_container_width=True):
+            navigate_to_page("ficha_medica")
+    
+    st.markdown('</div>', unsafe_allow_html=True)

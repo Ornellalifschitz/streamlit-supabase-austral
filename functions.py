@@ -41,7 +41,7 @@ def connect_to_supabase():
         print(f"Error connecting to Supabase database: {e}")
         return None
 
-connect_to_supabase()
+
 def execute_query(query, conn=None, is_select=True):
     """
     Executes a SQL query and returns the results as a pandas DataFrame for SELECT queries,
