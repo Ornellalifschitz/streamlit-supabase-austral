@@ -4,10 +4,35 @@ import datetime
 from datetime import timedelta
 import calendar
 
-# Configuración de la página
-st.set_page_config(page_title="Agenda de Turnos", layout="wide")
+# --- SECCIÓN DE AUTENTICACIÓN Y NAVEGACIÓN ---
 
-# Ocultar elementos por defecto de Streamlit
+# Función para cerrar sesión
+def cerrar_sesion():
+    """Limpia el estado de la sesión y redirige a la página de inicio."""
+    st.session_state.logged_in = False
+    st.session_state.user_data = None
+    st.session_state.show_register = False
+    st.session_state.show_recovery = False
+    st.session_state.recovery_dni = None
+    # Usamos st.switch_page para una redirección limpia
+    st.switch_page("Inicio.py")
+
+# Verificación de inicio de sesión
+# Esto debe estar al PRINCIPIO del script de la página protegida
+if 'logged_in' not in st.session_state or not st.session_state.logged_in:
+    st.warning("⚠️ Debes iniciar sesión para acceder a esta página.")
+    # El botón redirige a la página principal donde está el login
+    if st.button("Ir a la página de inicio de sesión"):
+        st.switch_page("Inicio.py")
+    st.stop() # Detiene la ejecución del resto de la página si no está logueado
+
+# --- FIN DE LA SECCIÓN DE AUTENTICACIÓN ---
+
+
+# Configuración de la página
+st.set_page_config(page_title="Agenda de Turnos", layout="wide", initial_sidebar_state="collapsed")
+
+# Ocultar elementos por defecto de Streamlit y aplicar estilos
 hide_streamlit_style = """
 <style>
     #MainMenu {visibility: hidden;}
@@ -23,9 +48,10 @@ hide_streamlit_style = """
     div[data-testid="metric-container"] {
         display: none;
     }
-    .stAlert {
+    /* Ocultamos los mensajes de error/éxito por defecto para usar los nuestros si se prefiere */
+    /* .stAlert {
         display: none;
-    }
+    } */
     
     /* Cambiar color del botón primary a azul */
     .stButton > button[kind="primary"] {
@@ -60,7 +86,7 @@ hide_streamlit_style = """
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
-# Inicializar session state para almacenar turnos
+# Inicializar session state para almacenar turnos si no existe
 if 'turnos' not in st.session_state:
     st.session_state.turnos = []
 
@@ -73,6 +99,16 @@ st.markdown("""
         color: #333;
         margin-bottom: 1rem;
         margin-top: 0rem;
+    }
+    .welcome-card {
+        background: linear-gradient(90deg, #1976d2, #42a5f5);
+        padding: 1rem 1.5rem;
+        border-radius: 10px;
+        color: white;
+        margin-bottom: 1.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
     }
     .form-container {
         background-color: #f8f9fa;
@@ -104,6 +140,23 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# --- MENSAJE DE BIENVENIDA Y BOTÓN DE SALIR ---
+user = st.session_state.user_data # Obtener datos del usuario logueado
+
+with st.container():
+    col_welcome, col_logout = st.columns([4, 1])
+    with col_welcome:
+        st.markdown(f"### 👋 ¡Hola, {user.get('nombre', 'Profesional')}!", unsafe_allow_html=True)
+        st.caption(f"DNI: {user.get('dni')} | Email: {user.get('mail')}")
+
+    with col_logout:
+        # Coloca el botón de cerrar sesión en la parte superior derecha
+        if st.button("🚪 Cerrar Sesión", key="logout_button_main", use_container_width=True):
+            cerrar_sesion()
+
+st.markdown("---")
+
+
 # Título principal
 st.markdown('<h1 class="main-title">Agenda de turnos</h1>', unsafe_allow_html=True)
 
@@ -112,33 +165,27 @@ col1, col2 = st.columns([1, 2])
 
 with col1:
     # Formulario para agregar turno
-    st.subheader("agregar turno")
+    st.subheader("Agregar turno")
     
     # Selectbox para pacientes (puedes agregar más nombres aquí)
     pacientes_disponibles = [
         "Seleccionar paciente...",
-        "Juan Perez",
-        "María García",
-        "Carlos López",
-        "Ana Martínez",
-        "Pedro Rodríguez",
-        "Laura Fernández",
-        "Miguel Sánchez",
-        "Carmen Ruiz",
-        "Antonio Morales",
-        "Elena Jiménez"
+        "Juan Perez", "María García", "Carlos López", "Ana Martínez",
+        "Pedro Rodríguez", "Laura Fernández", "Miguel Sánchez", "Carmen Ruiz",
+        "Antonio Morales", "Elena Jiménez"
     ]
     
     paciente_seleccionado = st.selectbox(
-        "nombre del paciente:",
+        "Nombre del paciente:",
         pacientes_disponibles,
         key="paciente_select"
     )
     
     # Fecha del turno
     fecha_turno = st.date_input(
-        "fecha:",
+        "Fecha:",
         value=datetime.date.today(),
+        min_value=datetime.date.today(), # Evita seleccionar fechas pasadas
         key="fecha_input"
     )
     
@@ -152,7 +199,7 @@ with col1:
     ]
     
     horario_seleccionado = st.selectbox(
-        "horario:",
+        "Horario:",
         horarios_disponibles,
         key="horario_select"
     )
@@ -167,7 +214,7 @@ with col1:
                 'fecha': fecha_turno,
                 'horario': horario_seleccionado,
                 'datetime': datetime.datetime.combine(fecha_turno, 
-                           datetime.time.fromisoformat(horario_seleccionado + ":00"))
+                                datetime.time.fromisoformat(horario_seleccionado + ":00"))
             }
             st.session_state.turnos.append(nuevo_turno)
             st.success(f"Turno agregado para {paciente_seleccionado}")
@@ -183,13 +230,13 @@ with col1:
             proximo_turno = min(turnos_futuros, key=lambda x: x['datetime'])
             
             st.markdown('<div class="next-appointment">', unsafe_allow_html=True)
-            st.subheader("proximo turno")
+            st.subheader("Próximo turno")
             dias_restantes = (proximo_turno['datetime'].date() - datetime.date.today()).days
             st.markdown(f"""
             <div style="display: flex; align-items: center; gap: 1rem;">
                 <div style="background-color: #1976d2; color: white; border-radius: 50%; 
-                           width: 3rem; height: 3rem; display: flex; align-items: center; 
-                           justify-content: center; font-weight: bold; font-size: 1.2rem;">
+                            width: 3rem; height: 3rem; display: flex; align-items: center; 
+                            justify-content: center; font-weight: bold; font-size: 1.2rem;">
                     {dias_restantes if dias_restantes >= 0 else 0}
                 </div>
                 <div>
@@ -226,7 +273,7 @@ with col2:
         meses = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
                 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
         st.markdown(f"<h3 style='text-align: center;'>{meses[st.session_state.current_month]} {st.session_state.current_year}</h3>", 
-                   unsafe_allow_html=True)
+                    unsafe_allow_html=True)
     
     with col_next:
         if st.button("▶", key="next_month"):
@@ -248,7 +295,7 @@ with col2:
     for i, dia in enumerate(dias_semana):
         with cols_header[i]:
             st.markdown(f"<div style='text-align: center; font-weight: bold; color: #666;'>{dia}</div>", 
-                       unsafe_allow_html=True)
+                        unsafe_allow_html=True)
     
     # Crear días del calendario
     for semana in cal:
@@ -260,7 +307,7 @@ with col2:
                 else:
                     # Verificar si hay turnos en este día
                     fecha_dia = datetime.date(st.session_state.current_year, st.session_state.current_month, dia)
-                    turnos_dia = [t for t in st.session_state.turnos if t['fecha'] == fecha_dia]
+                    turnos_dia = sorted([t for t in st.session_state.turnos if t['fecha'] == fecha_dia], key=lambda x: x['datetime'])
                     
                     # Determinar el color de fondo
                     bg_color = "#fff"
@@ -272,37 +319,47 @@ with col2:
                     day_content += f"<div style='font-weight: bold; text-align: center;'>{dia}</div>"
                     
                     # Agregar turnos del día
-                    for turno in turnos_dia[:3]:  # Mostrar máximo 3 turnos
-                        color_turno = "#1976d2" if len(turnos_dia) == 1 else ["#1976d2", "#42a5f5", "#64b5f6"][turnos_dia.index(turno) % 3]
-                        day_content += f"<div style='background-color: {color_turno}; color: white; font-size: 0.7rem; padding: 2px 4px; margin: 2px 0; border-radius: 3px; text-align: center;'>{turno['horario']}</div>"
+                    for turno in turnos_dia[:2]:  # Mostrar máximo 2 turnos para no saturar
+                        color_turno = "#1976d2"
+                        day_content += f"<div style='background-color: {color_turno}; color: white; font-size: 0.7rem; padding: 2px 4px; margin: 2px 0; border-radius: 3px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;'>{turno['horario']}</div>"
                     
-                    if len(turnos_dia) > 3:
-                        day_content += f"<div style='font-size: 0.6rem; text-align: center; color: #666;'>+{len(turnos_dia)-3} más</div>"
+                    if len(turnos_dia) > 2:
+                        day_content += f"<div style='font-size: 0.6rem; text-align: center; color: #666;'>+{len(turnos_dia)-2} más</div>"
                     
                     day_content += "</div>"
                     st.markdown(day_content, unsafe_allow_html=True)
     
     st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+
 
 # Mostrar lista de turnos
 if st.session_state.turnos:
-    st.subheader("Lista de Turnos")
+    st.subheader("Lista de Próximos Turnos")
     
     # Ordenar turnos por fecha y hora
     turnos_ordenados = sorted(st.session_state.turnos, key=lambda x: x['datetime'])
     
-    for i, turno in enumerate(turnos_ordenados):
-        col_turno, col_delete = st.columns([4, 1])
-        
-        with col_turno:
-            st.markdown(f"""
-            <div class="turno-card">
-                <strong>{turno['paciente']}</strong><br>
-                📅 {turno['fecha'].strftime('%d/%m/%Y')} - 🕐 {turno['horario']}
-            </div>
-            """, unsafe_allow_html=True)
-        
-        with col_delete:
-            if st.button("🗑️", key=f"delete_{i}", help="Eliminar turno"):
-                st.session_state.turnos.remove(turno)
-                st.rerun()
+    # Filtrar solo turnos de hoy en adelante
+    turnos_visibles = [t for t in turnos_ordenados if t['datetime'] >= datetime.datetime.now() - timedelta(hours=1)]
+
+    if not turnos_visibles:
+        st.info("No hay turnos próximos.")
+    else:
+        for i, turno in enumerate(turnos_visibles):
+            col_turno, col_delete = st.columns([4, 1])
+            
+            with col_turno:
+                st.markdown(f"""
+                <div class="turno-card">
+                    <strong>{turno['paciente']}</strong><br>
+                    📅 {turno['fecha'].strftime('%d/%m/%Y')} - 🕐 {turno['horario']}
+                </div>
+                """, unsafe_allow_html=True)
+            
+            with col_delete:
+                # Usamos el índice del turno original para evitar errores al borrar
+                turno_original_index = st.session_state.turnos.index(turno)
+                if st.button("🗑️", key=f"delete_{turno_original_index}", help="Eliminar turno"):
+                    st.session_state.turnos.pop(turno_original_index)
+                    st.rerun()

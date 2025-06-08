@@ -5,8 +5,9 @@ import psycopg2
 import os
 from dotenv import load_dotenv
 import re
+import time
 
-# Load environment variables from .env file 
+# Load environment variables from .env file
 load_dotenv()
 
 def connect_to_supabase():
@@ -253,8 +254,8 @@ def verificar_email_para_recuperar(dni: str, email: str) -> dict:
             if user_data[1].lower() == email.lower():  # user_data[1] es el email
                 # Email coincide, simular envío de enlace de recuperación
                 print(f"📧 SIMULACIÓN: Enviando enlace de recuperación a {email}")
-                print(f"   Usuario: {user_data[2]} (DNI: {dni})")  # user_data[2] es el nombre
-                print(f"   Enlace: https://tu-sistema.com/reset-password?token=abc123xyz")
+                print(f"  Usuario: {user_data[2]} (DNI: {dni})")  # user_data[2] es el nombre
+                print(f"  Enlace: https://tu-sistema.com/reset-password?token=abc123xyz")
                 
                 return {
                     'success': True,
@@ -472,10 +473,12 @@ def main():
     
     st.title("🔐 Sistema de Autenticación")
     
-    # Control de navegación principal
+    # Si el usuario ya está logueado, lo redirigimos a la agenda
     if st.session_state.logged_in:
-        mostrar_dashboard()
-    elif st.session_state.show_register:
+        st.switch_page("pages/agenda_turnos.py")
+
+    # Control de navegación principal
+    if st.session_state.show_register:
         mostrar_formulario_registro()
     elif st.session_state.show_recovery:
         mostrar_recuperacion_password()
@@ -491,16 +494,16 @@ def mostrar_formulario_login():
     col1, col2 = st.columns(2)
     with col1:
         if st.button("📝 ¿No tienes cuenta? Regístrate", 
-                    use_container_width=True, 
-                    key="btn_ir_registro",
-                    on_click=ir_a_registro):
+                     use_container_width=True, 
+                     key="btn_ir_registro",
+                     on_click=ir_a_registro):
             pass  # La función callback ya maneja la navegación
     
     with col2:
         if st.button("🔄 ¿Olvidaste tu contraseña?", 
-                    use_container_width=True, 
-                    key="btn_ir_recuperacion",
-                    on_click=ir_a_recuperacion):
+                     use_container_width=True, 
+                     key="btn_ir_recuperacion",
+                     on_click=ir_a_recuperacion):
             pass  # La función callback ya maneja la navegación
     
     st.markdown("---")
@@ -525,7 +528,8 @@ def mostrar_formulario_login():
                     st.success(resultado['message'])
                     st.session_state.logged_in = True
                     st.session_state.user_data = resultado['user_data']
-                    st.rerun()
+                    time.sleep(1) # Pequeña pausa para que el usuario lea el mensaje
+                    st.switch_page("pages/agenda_turnos.py") # Redirección
                     
                 elif resultado['action'] == 'register':
                     # Usuario no registrado
@@ -602,7 +606,6 @@ def mostrar_formulario_registro():
                     st.success(resultado['message'])
                     st.info("Serás redirigido al login en unos segundos...")
                     # Pequeña pausa para que el usuario vea el mensaje
-                    import time
                     time.sleep(2)
                     ir_a_login()
                     st.rerun()
@@ -656,67 +659,11 @@ def mostrar_recuperacion_password():
                     st.success(resultado['message'])
                     st.info("Serás redirigido al login en unos segundos...")
                     # Pequeña pausa para que el usuario vea el mensaje
-                    import time
                     time.sleep(3)
                     ir_a_login()
                     st.rerun()
                 else:
                     st.error(resultado['message'])
-
-
-def mostrar_dashboard():
-    """Dashboard principal después del login - MEJORADO"""
-    st.markdown("### 🎉 ¡Bienvenido al Sistema!")
-    
-    # Mostrar datos del usuario
-    user = st.session_state.user_data
-    
-    # Card de bienvenida
-    with st.container():
-        st.markdown(f"""
-        <div style="
-            background: linear-gradient(90deg, #4CAF50, #45a049);
-            padding: 20px;
-            border-radius: 10px;
-            color: white;
-            margin-bottom: 20px;
-        ">
-            <h3 style="margin: 0; color: white;">👋 Hola, {user['nombre']}!</h3>
-            <p style="margin: 5px 0 0 0; opacity: 0.9;">DNI: {user['dni']} | Email: {user['mail']}</p>
-        </div>
-        """, unsafe_allow_html=True)
-    
-    # Opciones del sistema
-    st.markdown("### 📋 Opciones del Sistema")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        if st.button("📅 Agenda de Turnos", use_container_width=True):
-            st.info("🚧 Funcionalidad en desarrollo")
-    
-    with col2:
-        if st.button("👥 Gestión de Pacientes", use_container_width=True):
-            st.info("🚧 Funcionalidad en desarrollo")
-    
-    with col3:
-        if st.button("📊 Reportes", use_container_width=True):
-            st.info("🚧 Funcionalidad en desarrollo")
-    
-    st.markdown("---")
-    
-    # Información adicional
-    with st.expander("ℹ️ Información del Usuario"):
-        st.write("**Datos registrados:**")
-        st.json(user)
-    
-    # Botón de logout
-    st.markdown("### ⚙️ Configuración")
-    if st.button("🚪 Cerrar Sesión", 
-                use_container_width=True,
-                on_click=cerrar_sesion):
-        st.rerun()
-
 
 # Ejecutar la aplicación
 if __name__ == "__main__":
