@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import psycopg2
 import os
+import plotly.express as px
+import plotly.graph_objects as go
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -401,7 +403,7 @@ if st.session_state.get('show_form', False):
         
         with col1:
             antecedentes_familiares = st.text_area( 
-                "Antecedentes Familiares *",
+                "Antecedentes Familiares", # Removed asterisk from UI label
                 placeholder="Ej: Padre con hipertensión, madre con diabetes...",
                 height=100,
                 help="Describa los antecedentes médicos familiares relevantes"
@@ -416,12 +418,12 @@ if st.session_state.get('show_form', False):
             )
             
             diagnostico = st.text_input(
-                "Diagnóstico General *",
+                "Diagnóstico General", # Removed asterisk from UI label
                 placeholder="Ej: Trastorno de ansiedad generalizada, Depresión leve...",
                 help="Ingrese el diagnóstico principal"
             )
         
-        st.markdown("*Campos obligatorios")
+        st.markdown("*Paciente es campo obligatorio.") # Updated message
         
         col1, col2, col3 = st.columns([1, 1, 2])
         
@@ -434,13 +436,12 @@ if st.session_state.get('show_form', False):
         if submitted:
             if not dni_paciente_selected:
                 st.error("⚠️ Por favor, seleccione un paciente.")
-            elif not antecedentes_familiares or not diagnostico: 
-                st.error("⚠️ Por favor, complete todos los campos obligatorios.")
             else:
+                # Handle empty strings for database insertion
                 add_result = add_ficha_medica(
                     dni_paciente=dni_paciente_selected,
                     antecedentes_familiares=antecedentes_familiares, 
-                    medicacion=medicacion if medicacion else 'Ninguna',
+                    medicacion=medicacion if medicacion else 'Ninguna', # Keep existing logic for medicacion
                     diagnostico_general=diagnostico
                 )
                 if add_result == "exists":
@@ -557,13 +558,167 @@ if st.session_state.authenticated_psicologo:
             st.cache_data.clear()
             st.rerun()
 
-else:
-    st.info("🔒 Para ver y gestionar las fichas médicas, inicie sesión como psicólogo desde la página principal.")
-
-# Footer
+    # Statistics section
 st.markdown("---")
-st.markdown("""
-<div style="text-align: center; color: #001d4a; font-style: italic; padding: 1rem;">
-    Sistema de Fichas Médicas - Conectado a Supabase
-</div>
-""", unsafe_allow_html=True)
+st.markdown("### 📊 Estadísticas Detalladas")
+
+# Create three columns for the pie charts
+col1, col2, col3 = st.columns(3)
+
+# 1. Antecedentes Familiares Pie Chart
+with col1:
+    st.markdown("#### Antecedentes Familiares")
+    
+    # Count patients with and without family history
+    with_antecedentes = len(df_fichas[df_fichas['antecedentes_familiares'].str.strip() != ''])
+    without_antecedentes = len(df_fichas[df_fichas['antecedentes_familiares'].str.strip() == ''])
+    
+    # Create pie chart data
+    antecedentes_data = {
+        'Categoría': ['Con Antecedentes', 'Sin Antecedentes'],
+        'Cantidad': [with_antecedentes, without_antecedentes]
+    }
+    
+    # Create pie chart with blue-grey color scheme
+    fig_antecedentes = px.pie(
+        values=antecedentes_data['Cantidad'],
+        names=antecedentes_data['Categoría'],
+        color_discrete_sequence=['#7BA7BC', '#E8E8E8'],  # Light blue and light grey
+        title=""
+    )
+    
+    # Update layout
+    fig_antecedentes.update_traces(
+        textposition='inside', 
+        textinfo='percent+label',
+        textfont_size=12,
+        marker=dict(line=dict(color='#2E4057', width=2))  # Dark blue border
+    )
+    
+    fig_antecedentes.update_layout(
+        showlegend=True,
+        height=300,
+        margin=dict(t=20, b=20, l=20, r=20),
+        font=dict(color='#2E4057', size=11),  # Dark blue text
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=-0.2,
+            xanchor="center",
+            x=0.5
+        )
+    )
+    
+    st.plotly_chart(fig_antecedentes, use_container_width=True)
+
+# 2. Medication Pie Chart
+with col2:
+    st.markdown("#### Medicación")
+    
+    # Count patients with and without medication
+    with_medicacion = len(df_fichas[
+        (df_fichas['medicacion'].str.strip().str.lower() != 'ninguna') & 
+        (df_fichas['medicacion'].str.strip() != '')
+    ])
+    without_medicacion = len(df_fichas[
+        (df_fichas['medicacion'].str.strip().str.lower() == 'ninguna') | 
+        (df_fichas['medicacion'].str.strip() == '')
+    ])
+    
+    # Create pie chart data
+    medicacion_data = {
+        'Categoría': ['Con Medicación', 'Sin Medicación'],
+        'Cantidad': [with_medicacion, without_medicacion]
+    }
+    
+    # Create pie chart with blue-grey color scheme
+    fig_medicacion = px.pie(
+        values=medicacion_data['Cantidad'],
+        names=medicacion_data['Categoría'],
+        color_discrete_sequence=['#2E4057', '#B8C5D1'],  # Dark blue and medium grey
+        title=""
+    )
+    
+    # Update layout
+    fig_medicacion.update_traces(
+        textposition='inside', 
+        textinfo='percent+label',
+        textfont_size=12,
+        marker=dict(line=dict(color='#7BA7BC', width=2))  # Light blue border
+    )
+    
+    fig_medicacion.update_layout(
+        showlegend=True,
+        height=300,
+        margin=dict(t=20, b=20, l=20, r=20),
+        font=dict(color='#2E4057', size=11),  # Dark blue text
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=-0.2,
+            xanchor="center",
+            x=0.5
+        )
+    )
+    
+    st.plotly_chart(fig_medicacion, use_container_width=True)
+
+# 3. Diagnosis Pie Chart
+with col3:
+    st.markdown("#### Diagnósticos")
+    
+    # Count patients with and without diagnosis
+    with_diagnostico = len(df_fichas[df_fichas['diagnostico_general'].str.strip() != ''])
+    without_diagnostico = len(df_fichas[df_fichas['diagnostico_general'].str.strip() == ''])
+    
+    # Create pie chart data
+    diagnostico_data = {
+        'Categoría': ['Con Diagnóstico', 'Sin Diagnóstico'],
+        'Cantidad': [with_diagnostico, without_diagnostico]
+    }
+    
+    # Create pie chart with blue-grey color scheme
+    fig_diagnostico = px.pie(
+        values=diagnostico_data['Cantidad'],
+        names=diagnostico_data['Categoría'],
+        color_discrete_sequence=['#4A6FA5', '#D4D4D4'],  # Medium blue and light grey
+        title=""
+    )
+    
+    # Update layout
+    fig_diagnostico.update_traces(
+        textposition='inside', 
+        textinfo='percent+label',
+        textfont_size=12,
+        marker=dict(line=dict(color='#2E4057', width=2))  # Dark blue border
+    )
+    
+    fig_diagnostico.update_layout(
+        showlegend=True,
+        height=300,
+        margin=dict(t=20, b=20, l=20, r=20),
+        font=dict(color='#2E4057', size=11),  # Dark blue text
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=-0.2,
+            xanchor="center",
+            x=0.5
+        )
+    )
+    
+    st.plotly_chart(fig_diagnostico, use_container_width=True)
+
+# Optional: Add a summary row below the charts
+st.markdown("---")
+st.markdown("#### Resumen General")
+
+col1, col2, col3, col4 = st.columns(4)
+with col1:
+    st.metric("Total Fichas", len(df_fichas))
+with col2:
+    st.metric("Con Antecedentes", f"{with_antecedentes} ({with_antecedentes/len(df_fichas)*100:.1f}%)")
+with col3:
+    st.metric("Con Medicación", f"{with_medicacion} ({with_medicacion/len(df_fichas)*100:.1f}%)")
+with col4:
+    st.metric("Con Diagnóstico", f"{with_diagnostico} ({with_diagnostico/len(df_fichas)*100:.1f}%)")
