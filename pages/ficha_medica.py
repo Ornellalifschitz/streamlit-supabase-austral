@@ -1,30 +1,180 @@
 import streamlit as st
 import pandas as pd
-import random
+import psycopg2
+import os
+from dotenv import load_dotenv
 
-####################################################################################################################3
-# Verificación de inicio de sesión
-# Esto debe estar al PRINCIPIO del script de la página protegida
+# Load environment variables from .env file
+load_dotenv()
+
+# ============= AUTHENTICATION CHECK AND DNI RETRIEVAL =============
+
+# This must be at the BEGINNING of the protected page script
 if 'logged_in' not in st.session_state or not st.session_state.logged_in:
     st.warning("⚠️ Debes iniciar sesión para acceder a esta página.")
-    # El botón redirige a la página principal donde está el login
+    if st.button("Ir a la página de inicio de sesión"):
+        st.switch_page("Inicio.py") # Make sure this path is correct for your login page
+    st.stop() # Stop execution if not logged in
+
+# Retrieve the authenticated psychologist's DNI from session_state.user_data
+if 'user_data' in st.session_state and 'dni' in st.session_state.user_data:
+    st.session_state.authenticated_psicologo = st.session_state.user_data['dni']
+else:
+    st.warning("⚠️ No se pudo obtener el DNI del psicólogo autenticado. Por favor, vuelva a iniciar sesión.")
     if st.button("Ir a la página de inicio de sesión"):
         st.switch_page("Inicio.py")
-    st.stop() # Detiene la ejecución del resto de la página si no está logueado
+    st.stop()
 
-# --- FIN DE LA SECCIÓN DE AUTENTICACIÓN ---########################################################################################
+# --- END OF AUTHENTICATION SECTION ---
 
-# Configuración de la página
+# ============= DATABASE FUNCTIONS =============
+
+def connect_to_supabase():
+    """
+    Connects to the Supabase PostgreSQL database using transaction pooler details
+    and credentials stored in environment variables.
+    """
+    try:
+        host = os.getenv("SUPABASE_DB_HOST")
+        port = os.getenv("SUPABASE_DB_PORT")
+        dbname = os.getenv("SUPABASE_DB_NAME")
+        user = os.getenv("SUPABASE_DB_USER")
+        password = os.getenv("SUPABASE_DB_PASSWORD")
+        
+        if not all([host, port, dbname, user, password]):
+            st.error("Error: Una o más variables de entorno de Supabase no están configuradas.")
+            st.error("Configure SUPABASE_DB_HOST, SUPABASE_DB_PORT, SUPABASE_DB_NAME, SUPABASE_DB_USER, y SUPABASE_DB_PASSWORD.")
+            return None
+        
+        conn = psycopg2.connect(
+            host=host,
+            port=port,
+            dbname=dbname,
+            user=user,
+            password=password,
+        )
+        return conn
+    except psycopg2.Error as e:
+        st.error(f"Error conectando a la base de datos Supabase: {e}")
+        return None
+
+def execute_query(query, params=None, is_select=True):
+    """
+    Executes a SQL query and returns the results as a pandas DataFrame for SELECT queries,
+    or executes DML operations (INSERT, UPDATE, DELETE) and returns success status.
+    """
+    try:
+        conn = connect_to_supabase()
+        if conn is None:
+            return pd.DataFrame() if is_select else False
+            
+        cursor = conn.cursor()
+        
+        if params:
+            cursor.execute(query, params)
+        else:
+            cursor.execute(query)
+        
+        if is_select:
+            results = cursor.fetchall()
+            colnames = [desc[0] for desc in cursor.description]
+            df = pd.DataFrame(results, columns=colnames)
+            result = df
+        else:
+            conn.commit()
+            result = True
+        
+        cursor.close()
+        conn.close()
+        return result
+        
+    except Exception as e:
+        st.error(f"Error ejecutando consulta: {e}")
+        if 'conn' in locals() and conn and not is_select:
+            conn.rollback()
+        return pd.DataFrame() if is_select else False
+
+# ============= MEDICAL RECORD FUNCTIONS =============
+
+def get_fichas_medicas_por_psicologo(dni_psicologo):
+    """
+    Obtiene todas las fichas médicas asociadas a un psicólogo específico.
+    Filtra por dni_psicologo de la tabla 'pacientes' a través de la unión.
+    """
+    query = """
+    SELECT 
+        fm.id_ficha_medica,
+        p.dni_psicologo, -- Correctly reference dni_psicologo from 'pacientes' table
+        fm.dni_paciente,
+        p.nombre AS nombre_paciente, 
+        fm.antecedentes_familiares, -- Corrected column name
+        fm.medicacion,
+        fm.diagnostico_general
+    FROM ficha_medica fm
+    JOIN pacientes p ON fm.dni_paciente = p.dni_paciente
+    WHERE p.dni_psicologo = %s -- Filter by dni_psicologo from 'pacientes' table
+    ORDER BY fm.id_ficha_medica DESC;
+    """
+    
+    try:
+        result_df = execute_query(query, params=(dni_psicologo,), is_select=True)
+        return result_df
+        
+    except Exception as e:
+        st.error(f"Error al obtener fichas médicas del psicólogo {dni_psicologo}: {str(e)}")
+        return pd.DataFrame(columns=['id_ficha_medica', 'dni_psicologo', 'dni_paciente', 'nombre_paciente', 'antecedentes_familiares', 'medicacion', 'diagnostico_general'])
+
+def check_ficha_medica_exists(dni_paciente):
+    """
+    Checks if a medical record already exists for a given patient.
+    """
+    query = "SELECT COUNT(*) FROM ficha_medica WHERE dni_paciente = %s;"
+    result = execute_query(query, params=(dni_paciente,), is_select=True)
+    if not result.empty:
+        return result.iloc[0, 0] > 0
+    return False
+
+def add_ficha_medica(dni_paciente, antecedentes_familiares, medicacion, diagnostico_general):
+    """
+    Adds a new medical record to the ficha_medica table.
+    Returns True on success, False on failure, or "exists" if a record already exists for the patient.
+    """
+    if check_ficha_medica_exists(dni_paciente):
+        return "exists" # Custom return value for existing record
+
+    query = """
+    INSERT INTO ficha_medica (dni_paciente, antecedentes_familiares, medicacion, diagnostico_general)
+    VALUES (%s, %s, %s, %s)
+    """
+    params = (dni_paciente, antecedentes_familiares, medicacion, diagnostico_general)
+    return execute_query(query, params=params, is_select=False)
+
+def get_pacientes_for_dropdown(dni_psicologo):
+    """
+    Obtiene los pacientes asociados al psicólogo para el dropdown.
+    Returns a list of (DNI, Nombre Completo) tuples.
+    """
+    query = """
+    SELECT dni_paciente, nombre FROM pacientes
+    WHERE dni_psicologo = %s ORDER BY nombre;
+    """
+    df = execute_query(query, params=(dni_psicologo,), is_select=True)
+    if not df.empty:
+        return [(f"{row['dni_paciente']} - {row['nombre']}", row['dni_paciente']) for _, row in df.iterrows()]
+    return []
+
+# ============= STREAMLIT CONFIGURATION =============
+
 st.set_page_config(
     page_title="Sistema de Fichas Médicas",
     page_icon="🏥",
     layout="wide"
 )
 
-# CSS personalizado con la paleta de colores
+# Custom CSS with color palette
 st.markdown("""
 <style>
-    /* Variables de colores */
+    /* Color variables */
     :root {
         --primary-dark: #001d4a;
         --primary-medium: #508ca4;
@@ -32,13 +182,13 @@ st.markdown("""
         --background-accent: #c2bdb6;
     }
     
-    /* Fondo general */
+    /* General background */
     .main .block-container {
         background-color: var(--primary-light);
         padding: 2rem 1rem;
     }
     
-    /* Estilo del título principal */
+    /* Main title style */
     .title-container {
         background-color: #c2bdb6;
         padding: 1.5rem;
@@ -56,7 +206,7 @@ st.markdown("""
         text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
     }
     
-    /* Botones principales */
+    /* Main buttons */
     .stButton > button {
         background-color: #001d4a !important;
         color: white !important;
@@ -72,7 +222,7 @@ st.markdown("""
         box-shadow: 0 4px 8px rgba(0, 29, 74, 0.3) !important;
     }
     
-    /* Formularios */
+    /* Forms */
     .stForm {
         background-color: white;
         padding: 2rem;
@@ -81,10 +231,11 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(80, 140, 164, 0.2);
     }
     
-    /* Inputs de texto */
+    /* Text inputs */
     .stTextInput > div > div > input,
     .stTextArea > div > div > textarea,
-    .stSelectbox > div > div > select {
+    .stSelectbox > div > div > select,
+    .stDateInput > div > div > input {
         border: 2px solid #508ca4 !important;
         border-radius: 5px !important;
         background-color: white !important;
@@ -92,7 +243,8 @@ st.markdown("""
     
     .stTextInput > div > div > input:focus,
     .stTextArea > div > div > textarea:focus,
-    .stSelectbox > div > div > select:focus {
+    .stSelectbox > div > div > select:focus,
+    .stDateInput > div > div > input:focus {
         border-color: #001d4a !important;
         box-shadow: 0 0 0 2px rgba(0, 29, 74, 0.2) !important;
     }
@@ -100,12 +252,13 @@ st.markdown("""
     /* Labels */
     .stTextInput > label,
     .stTextArea > label,
-    .stSelectbox > label {
+    .stSelectbox > label,
+    .stDateInput > label {
         color: #001d4a !important;
         font-weight: bold !important;
     }
     
-    /* Métricas */
+    /* Metrics */
     .metric-container > div {
         background-color: white;
         border: 2px solid #508ca4;
@@ -127,7 +280,7 @@ st.markdown("""
         overflow: hidden;
     }
     
-    /* Mensajes de alerta */
+    /* Alert messages */
     .stAlert {
         border-radius: 8px;
     }
@@ -156,7 +309,7 @@ st.markdown("""
         color: #001d4a;
     }
     
-    /* Subtítulos */
+    /* Subheadings */
     h3 {
         color: #001d4a !important;
         border-bottom: 2px solid #508ca4;
@@ -167,12 +320,12 @@ st.markdown("""
         color: #001d4a !important;
     }
     
-    /* Sidebar si se usa */
+    /* Sidebar if used */
     .css-1d391kg {
         background-color: #001d4a;
     }
     
-    /* Separadores */
+    /* Separators */
     hr {
         border-color: #508ca4 !important;
         border-width: 2px !important;
@@ -180,92 +333,74 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Inicializar datos de ejemplo si no existen en session_state
-if 'fichas_medicas' not in st.session_state:
-    st.session_state.fichas_medicas = pd.DataFrame({
-        'ID_Ficha': [37245687, 35784125, 24896532, 40125456, 30254863, 38756921, 20154789, 37654128, 32455701, 42145789, 22548963, 36541278, 28965412, 39874562, 25487963],
-        'DNI_Paciente': ['37245687', '35784125', '24896532', '40125456', '30254863', '38756921', '20154789', '37654128', '32455701', '42145789', '22548963', '36541278', '28965412', '39874562', '25487963'],
-        'Antecedentes_Familiares': [
-            'Antecedentes de ansiedad en familia paterna',
-            'Padre con depresión',
-            'Sin antecedentes relevantes',
-            'Madre con trastorno bipolar',
-            'Abuelo con demencia',
-            'Hermana con TOC',
-            'Sin antecedentes relevantes',
-            'Tío con esquizofrenia',
-            'Antecedentes de adicciones',
-            'Sin antecedentes relevantes',
-            'Padre con alcoholismo',
-            'Hermano con TDAH',
-            'Sin antecedentes relevantes',
-            'Madre con depresión posparto',
-            'Abuelo con Parkinson'
-        ],
-        'Medicacion': [
-            'Escitalopram 10mg',
-            'Fluoxetina 20mg',
-            'Ninguna',
-            'Lamotrigina 100mg',
-            'Ninguna',
-            'Sertralina 50mg',
-            'Bupropión 150mg',
-            'Risperidona 1mg',
-            'Ninguna',
-            'Alprazolam 0.25mg',
-            'Naltrexona 50mg',
-            'Metilfenidato 10mg',
-            'Ninguna',
-            'Venlafaxina 75mg',
-            'Ninguna'
-        ],
-        'Diagnostico_General': [
-            'Trastorno de ansiedad generalizada',
-            'Episodio depresivo moderado',
-            'Problemas de adaptación',
-            'Trastorno del estado de ánimo',
-            'Estrés laboral crónico',
-            'Trastorno obsesivo compulsivo leve',
-            'Depresión con síntomas de apatía',
-            'Trastorno de la personalidad',
-            'Dependencia emocional',
-            'Crisis de pánico',
-            'Problemas de control de impulsos',
-            'Trastorno por déficit de atención',
-            'Duelo no resuelto',
-            'Trastorno mixto ansioso-depresivo',
-            'Insomnio crónico'
-        ]
-    })
+# Initialize session variables
+if 'show_form' not in st.session_state:
+    st.session_state.show_form = False
 
-# Título principal con fondo personalizado
+# Function to load data from Supabase filtered by psychologist
+@st.cache_data(ttl=60)  # Cache for 60 seconds
+def load_fichas_medicas_data_by_psicologo(dni_psicologo):
+    """Loads medical records data from Supabase filtered by psychologist with caching"""
+    return get_fichas_medicas_por_psicologo(dni_psicologo)
+
+# Main title with custom background
 st.markdown("""
 <div class="title-container">
     <h1 class="title-text">🏥 Sistema de Fichas Médicas</h1>
 </div>
 """, unsafe_allow_html=True)
 
-# Botón para nueva ficha médica
+# Display authenticated psychologist information
+if st.session_state.authenticated_psicologo:
+    st.success(f"🔓 Sesión iniciada como psicólogo DNI: {st.session_state.authenticated_psicologo}")
+    
+    # Button to close session
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        if st.button("🚪 Cerrar Sesión", type="secondary"):
+            st.session_state.logged_in = False
+            st.session_state.authenticated_psicologo = None
+            st.session_state.show_form = False
+            if 'user_data' in st.session_state:
+                del st.session_state.user_data
+            if 'psicologo_dni' in st.session_state: # Clear if used previously
+                del st.session_state.psicologo_dni
+            st.cache_data.clear()
+            st.switch_page("Inicio.py")
+
+# Button for new medical record
 col1, col2 = st.columns([1, 4])
 with col1:
     if st.button("➕ Nueva Ficha Médica", type="primary", use_container_width=True):
         st.session_state.show_form = True
 
-# Mostrar el formulario si el botón fue presionado
+# Show medical record form if the button was pressed
 if st.session_state.get('show_form', False):
     st.markdown("### 📝 Registrar Nueva Ficha Médica")
     
+    # Get patients for dropdown
+    pacientes_list = get_pacientes_for_dropdown(st.session_state.authenticated_psicologo)
+    pacientes_display_options = [""] + [p[0] for p in pacientes_list] # Add empty option
+    pacientes_dni_map = {p[0]: p[1] for p in pacientes_list}
+
     with st.form("nueva_ficha_form", clear_on_submit=True):
+        
+        # Dropdown for patient DNI
+        if pacientes_display_options:
+            selected_paciente_display = st.selectbox(
+                "Seleccione Paciente *",
+                options=pacientes_display_options,
+                help="Seleccione el paciente al que corresponde la ficha médica"
+            )
+            dni_paciente_selected = pacientes_dni_map.get(selected_paciente_display, None)
+        else:
+            st.warning("No tiene pacientes registrados. Por favor, registre un paciente primero en la sección de Pacientes.")
+            dni_paciente_selected = None # No patient to select
+
         col1, col2 = st.columns(2)
         
         with col1:
-            dni_paciente = st.text_input(
-                "DNI del Paciente *",
-                placeholder="Ej: 12345678",
-                help="Ingrese el DNI del paciente"
-            )
-            
-            antecedentes = st.text_area(
+            antecedentes_familiares = st.text_area( 
                 "Antecedentes Familiares *",
                 placeholder="Ej: Padre con hipertensión, madre con diabetes...",
                 height=100,
@@ -282,13 +417,12 @@ if st.session_state.get('show_form', False):
             
             diagnostico = st.text_input(
                 "Diagnóstico General *",
-                placeholder="Ej: Hipertensión arterial leve",
+                placeholder="Ej: Trastorno de ansiedad generalizada, Depresión leve...",
                 help="Ingrese el diagnóstico principal"
             )
         
         st.markdown("*Campos obligatorios")
         
-        # Botones del formulario
         col1, col2, col3 = st.columns([1, 1, 2])
         
         with col1:
@@ -297,126 +431,139 @@ if st.session_state.get('show_form', False):
         with col2:
             cancelled = st.form_submit_button("❌ Cancelar")
         
-        # Procesar el formulario
         if submitted:
-            if dni_paciente and antecedentes and diagnostico:
-                # Generar ID único
-                nuevo_id = random.randint(10000000, 99999999)
-                
-                # Crear nueva fila
-                nueva_fila = pd.DataFrame({
-                    'ID_Ficha': [nuevo_id],
-                    'DNI_Paciente': [dni_paciente],
-                    'Antecedentes_Familiares': [antecedentes],
-                    'Medicacion': [medicacion if medicacion else 'Ninguna'],
-                    'Diagnostico_General': [diagnostico]
-                })
-                
-                # Agregar a la tabla
-                st.session_state.fichas_medicas = pd.concat([
-                    st.session_state.fichas_medicas, 
-                    nueva_fila
-                ], ignore_index=True)
-                
-                st.success("✅ ¡Ficha médica guardada exitosamente!")
-                st.session_state.show_form = False
-                st.rerun()
-            else:
+            if not dni_paciente_selected:
+                st.error("⚠️ Por favor, seleccione un paciente.")
+            elif not antecedentes_familiares or not diagnostico: 
                 st.error("⚠️ Por favor, complete todos los campos obligatorios.")
+            else:
+                add_result = add_ficha_medica(
+                    dni_paciente=dni_paciente_selected,
+                    antecedentes_familiares=antecedentes_familiares, 
+                    medicacion=medicacion if medicacion else 'Ninguna',
+                    diagnostico_general=diagnostico
+                )
+                if add_result == "exists":
+                    st.error("⚠️ Este paciente ya cuenta con una ficha médica en el sistema.")
+                elif add_result: # If add_ficha_medica returns True (success)
+                    st.success("✅ ¡Ficha médica guardada exitosamente!")
+                    st.session_state.show_form = False
+                    st.cache_data.clear() # Clear cache to reload data
+                    st.rerun()
+                else: # If add_ficha_medica returns False (database error)
+                    st.error("❌ Error al guardar la ficha médica. Intente nuevamente.")
         
         if cancelled:
             st.session_state.show_form = False
             st.rerun()
 
-# Mostrar la tabla de fichas médicas
-st.markdown("### 📋 Fichas Médicas Registradas")
+# Display medical records table if psychologist is authenticated
+if st.session_state.authenticated_psicologo:
+    with st.spinner("Cargando sus fichas médicas desde Supabase..."):
+        df_fichas = load_fichas_medicas_data_by_psicologo(st.session_state.authenticated_psicologo)
 
-# Estadísticas rápidas
-st.markdown('<div class="metric-container">', unsafe_allow_html=True)
-col1, col2, col3, col4 = st.columns(4)
-with col1:
-    st.metric("Total de Fichas", len(st.session_state.fichas_medicas))
-with col2:
-    pacientes_con_medicacion = len(st.session_state.fichas_medicas[st.session_state.fichas_medicas['Medicacion'] != 'Ninguna'])
-    st.metric("Con Medicación", pacientes_con_medicacion)
-with col3:
-    sin_antecedentes = len(st.session_state.fichas_medicas[st.session_state.fichas_medicas['Antecedentes_Familiares'].str.contains('Sin antecedentes', na=False)])
-    st.metric("Sin Antecedentes", sin_antecedentes)
-with col4:
-    st.metric("Última Ficha", f"ID: {st.session_state.fichas_medicas['ID_Ficha'].iloc[-1]}")
-st.markdown('</div>', unsafe_allow_html=True)
+    if df_fichas.empty:
+        st.info("ℹ️ No tiene fichas médicas registradas aún. Use el botón 'Nueva Ficha Médica' para agregar su primer registro.")
+    else:
+        st.markdown("### 📋 Fichas Médicas Registradas")
 
-# Filtros opcionales
-st.markdown("#### 🔍 Filtros")
-col1, col2 = st.columns(2)
+        # Quick statistics
+        st.markdown('<div class="metric-container">', unsafe_allow_html=True)
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total de Fichas", len(df_fichas))
+        with col2:
+            fichas_con_medicacion = len(df_fichas[df_fichas['medicacion'].str.strip().str.lower() != 'ninguna'])
+            st.metric("Con Medicación", fichas_con_medicacion)
+        with col3:
+            # For now, checking if 'antecedentes_familiares' explicitly contains "sin antecedentes"
+            sin_antecedentes = len(df_fichas[df_fichas['antecedentes_familiares'].str.contains('sin antecedentes', case=False, na=False)]) 
+            st.metric("Sin Antecedentes", sin_antecedentes)
+        with col4:
+            # Ensure the column exists before trying to access
+            if 'id_ficha_medica' in df_fichas.columns and not df_fichas.empty:
+                 st.metric("Última Ficha ID", df_fichas['id_ficha_medica'].iloc[0]) # Assuming DESC order
+            else:
+                 st.metric("Última Ficha ID", "N/A")
+        st.markdown('</div>', unsafe_allow_html=True)
 
-with col1:
-    filtro_dni = st.text_input("Buscar por DNI", placeholder="Ingrese DNI para filtrar")
+        # Filters
+        st.markdown("#### 🔍 Filtros")
+        col1, col2 = st.columns(2)
 
-with col2:
-    filtro_diagnostico = st.selectbox(
-        "Filtrar por tipo de diagnóstico",
-        ["Todos"] + sorted(st.session_state.fichas_medicas['Diagnostico_General'].unique().tolist())
-    )
+        with col1:
+            filtro_dni_paciente = st.text_input("Buscar por DNI del Paciente", placeholder="Ingrese DNI para filtrar")
 
-# Aplicar filtros
-df_filtrado = st.session_state.fichas_medicas.copy()
+        with col2:
+            diagnosticos_unicos = ["Todos"] + sorted(df_fichas['diagnostico_general'].unique().tolist())
+            filtro_diagnostico = st.selectbox(
+                "Filtrar por Diagnóstico General",
+                diagnosticos_unicos
+            )
 
-if filtro_dni:
-    df_filtrado = df_filtrado[df_filtrado['DNI_Paciente'].str.contains(filtro_dni, na=False)]
+        # Apply filters
+        df_filtrado = df_fichas.copy()
 
-if filtro_diagnostico != "Todos":
-    df_filtrado = df_filtrado[df_filtrado['Diagnostico_General'] == filtro_diagnostico]
+        if filtro_dni_paciente:
+            df_filtrado = df_filtrado[df_filtrado['dni_paciente'].astype(str).str.contains(filtro_dni_paciente, na=False)]
 
-# Configurar la visualización de la tabla
-st.dataframe(
-    df_filtrado,
-    use_container_width=True,
-    hide_index=True,
-    column_config={
-        "ID_Ficha": st.column_config.NumberColumn(
-            "ID Ficha",
-            help="Identificador único de la ficha médica",
-            format="%d"
-        ),
-        "DNI_Paciente": st.column_config.TextColumn(
-            "DNI Paciente",
-            help="Documento Nacional de Identidad del paciente",
-            max_chars=50
-        ),
-        "Antecedentes_Familiares": st.column_config.TextColumn(
-            "Antecedentes Familiares",
-            help="Historial médico familiar del paciente",
-            max_chars=100
-        ),
-        "Medicacion": st.column_config.TextColumn(
-            "Medicación",
-            help="Medicamentos actuales del paciente",
-            max_chars=80
-        ),
-        "Diagnostico_General": st.column_config.TextColumn(
-            "Diagnóstico General",
-            help="Diagnóstico principal del paciente",
-            max_chars=80
+        if filtro_diagnostico != "Todos":
+            df_filtrado = df_filtrado[df_filtrado['diagnostico_general'] == filtro_diagnostico]
+
+        # Configure table display
+        st.dataframe(
+            df_filtrado,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "id_ficha_medica": st.column_config.NumberColumn(
+                    "ID Ficha",
+                    help="Identificador único de la ficha médica",
+                    format="%d"
+                ),
+                "dni_psicologo": st.column_config.TextColumn(
+                    "DNI Psicólogo",
+                    help="DNI del psicólogo que registró la ficha (a través del paciente)",
+                    max_chars=50
+                ),
+                "dni_paciente": st.column_config.TextColumn(
+                    "DNI Paciente",
+                    help="DNI del paciente",
+                    max_chars=50
+                ),
+                "nombre_paciente": st.column_config.TextColumn(
+                    "Nombre Paciente",
+                    help="Nombre completo del paciente",
+                    max_chars=100
+                ),
+                "antecedentes_familiares": st.column_config.TextColumn( 
+                    "Antecedentes Familiares",
+                    help="Historial médico familiar del paciente"
+                ),
+                "medicacion": st.column_config.TextColumn(
+                    "Medicación",
+                    help="Medicamentos actuales del paciente"
+                ),
+                "diagnostico_general": st.column_config.TextColumn(
+                    "Diagnóstico General",
+                    help="Diagnóstico principal del paciente"
+                )
+            },
+            height=400
         )
-    },
-    height=400
-)
 
-# Información adicional
-st.markdown("---")
-col1, col2 = st.columns(2)
+        # Button to refresh data
+        if st.button("🔄 Refrescar datos", help="Recarga los datos desde la base de datos"):
+            st.cache_data.clear()
+            st.rerun()
 
-with col1:
-    st.info("💡 **Consejos de uso:**\n- Use el botón 'Nueva Ficha Médica' para agregar registros\n- Los filtros le ayudan a encontrar fichas específicas\n- Todos los datos se mantienen durante la sesión")
-
-with col2:
-    st.warning("⚠️ **Importante:**\n- Los campos marcados con * son obligatorios\n- Los datos se reinician al cerrar la aplicación\n- Mantenga la confidencialidad de la información médica")
+else:
+    st.info("🔒 Para ver y gestionar las fichas médicas, inicie sesión como psicólogo desde la página principal.")
 
 # Footer
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; color: #001d4a; font-style: italic; padding: 1rem;">
-    Sistema de Fichas Médicas - Desarrollado con Streamlit
+    Sistema de Fichas Médicas - Conectado a Supabase
 </div>
 """, unsafe_allow_html=True)
