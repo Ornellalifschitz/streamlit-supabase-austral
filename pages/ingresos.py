@@ -3,6 +3,20 @@ import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
 
+##############################################################################
+# Verificación de inicio de sesión
+# Esto debe estar al PRINCIPIO del script de la página protegida
+if 'logged_in' not in st.session_state or not st.session_state.logged_in:
+    st.warning("⚠️ Debes iniciar sesión para acceder a esta página.")
+    # El botón redirige a la página principal donde está el login
+    if st.button("Ir a la página de inicio de sesión"):
+        st.switch_page("Inicio.py")
+    st.stop() # Detiene la ejecución del resto de la página si no está logueado
+
+# --- FIN DE LA SECCIÓN DE AUTENTICACIÓN ---
+################################################################################
+
+
 # Configuración de la página
 st.set_page_config(
     page_title="Ingresos de Pacientes",
