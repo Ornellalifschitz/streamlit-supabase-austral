@@ -1,7 +1,244 @@
 import streamlit as st
 import pandas as pd
-import random
+import psycopg2
+import os
+from dotenv import load_dotenv
 from datetime import datetime, date
+
+# Verificación de inicio de sesión
+# Esto debe estar al PRINCIPIO del script de la página protegida
+if 'logged_in' not in st.session_state or not st.session_state.logged_in:
+    st.warning("⚠️ Debes iniciar sesión para acceder a esta página.")
+    # El botón redirige a la página principal donde está el login
+    if st.button("Ir a la página de inicio de sesión"):
+        st.switch_page("Inicio.py")
+    st.stop() # Detiene la ejecución del resto de la página si no está logueado
+
+# --- FIN DE LA SECCIÓN DE AUTENTICACIÓN ---
+
+
+
+# Verificación de inicio de sesión
+# Esto debe estar al PRINCIPIO del script de la página protegida
+if 'logged_in' not in st.session_state or not st.session_state.logged_in:
+    st.warning("⚠️ Debes iniciar sesión para acceder a esta página.")
+    # El botón redirige a la página principal donde está el login
+    if st.button("Ir a la página de inicio de sesión"):
+        st.switch_page("Inicio.py")
+    st.stop() # Detiene la ejecución del resto de la página si no está logueado
+
+# --- FIN DE LA SECCIÓN DE AUTENTICACIÓN ---
+
+
+
+# Load environment variables from .env file
+load_dotenv()
+
+# ============= FUNCIONES DE BASE DE DATOS =============
+
+def connect_to_supabase():
+    """
+    Connects to the Supabase PostgreSQL database using transaction pooler details
+    and credentials stored in environment variables.
+    """
+    try:
+        # Retrieve connection details from environment variables
+        host = os.getenv("SUPABASE_DB_HOST")
+        port = os.getenv("SUPABASE_DB_PORT")
+        dbname = os.getenv("SUPABASE_DB_NAME")
+        user = os.getenv("SUPABASE_DB_USER")
+        password = os.getenv("SUPABASE_DB_PASSWORD")
+        
+        # Check if all required environment variables are set
+        if not all([host, port, dbname, user, password]):
+            st.error("Error: Una o más variables de entorno de Supabase no están configuradas.")
+            st.error("Configure SUPABASE_DB_HOST, SUPABASE_DB_PORT, SUPABASE_DB_NAME, SUPABASE_DB_USER, y SUPABASE_DB_PASSWORD.")
+            return None
+        
+        # Establish the connection
+        conn = psycopg2.connect(
+            host=host,
+            port=port,
+            dbname=dbname,
+            user=user,
+            password=password,
+        )
+        return conn
+    except psycopg2.Error as e:
+        st.error(f"Error conectando a la base de datos Supabase: {e}")
+        return None
+
+def execute_query(query, params=None, is_select=True):
+    """
+    Executes a SQL query and returns the results as a pandas DataFrame for SELECT queries,
+    or executes DML operations (INSERT, UPDATE, DELETE) and returns success status.
+    """
+    try:
+        # Create a new connection
+        conn = connect_to_supabase()
+        if conn is None:
+            return pd.DataFrame() if is_select else False
+            
+        # Create cursor and execute query
+        cursor = conn.cursor()
+        
+        if params:
+            cursor.execute(query, params)
+        else:
+            cursor.execute(query)
+        
+        if is_select:
+            # Fetch all results for SELECT queries
+            results = cursor.fetchall()
+            # Get column names from cursor description
+            colnames = [desc[0] for desc in cursor.description]
+            # Create DataFrame
+            df = pd.DataFrame(results, columns=colnames)
+            result = df
+        else:
+            # For DML operations, commit changes and return success
+            conn.commit()
+            result = True
+        
+        # Close cursor and connection
+        cursor.close()
+        conn.close()
+        return result
+        
+    except Exception as e:
+        st.error(f"Error ejecutando consulta: {e}")
+        # Rollback any changes if an error occurred during DML operation
+        if 'conn' in locals() and conn and not is_select:
+            conn.rollback()
+        return pd.DataFrame() if is_select else False
+
+# ============= FUNCIONES DE VALIDACIÓN =============
+
+def validate_dni_format(dni):
+    """
+    Validates that DNI has exactly 8 digits and no spaces or dots.
+    
+    Args:
+        dni (str): DNI to validate
+        
+    Returns:
+        bool: True if valid format, False otherwise
+    """
+    # Remove any whitespace
+    dni = dni.strip()
+    
+    # Check if it's exactly 8 digits
+    if len(dni) == 8 and dni.isdigit():
+        return True
+    return False
+
+def validate_psicologo_dni(dni_psicologo):
+    """
+    Validates if the psychologist DNI exists in the usuario_psicologos table.
+    
+    Args:
+        dni_psicologo (str): DNI of the psychologist to validate
+        
+    Returns:
+        bool: True if DNI exists in usuario_psicologos table, False otherwise
+    """
+    query = "SELECT COUNT(*) as count FROM usuario_psicologos WHERE dnis = %s"
+    result = execute_query(query, params=(dni_psicologo,), is_select=True)
+    
+    if result.empty:
+        return False
+    
+    return result.iloc[0]['count'] > 0
+
+def check_paciente_exists(dni_paciente):
+    """
+    Checks if a patient with the given DNI already exists.
+    
+    Args:
+        dni_paciente (str): Patient's DNI to check
+        
+    Returns:
+        bool: True if patient exists, False otherwise
+    """
+    query = "SELECT COUNT(*) as count FROM pacientes WHERE dni_paciente = %s"
+    result = execute_query(query, params=(dni_paciente,), is_select=True)
+    
+    if result.empty:
+        return False
+    
+    return result.iloc[0]['count'] > 0
+
+# ============= FUNCIONES DE PACIENTES =============
+
+def get_all_pacientes():
+    """
+    Obtiene todos los pacientes de la base de datos.
+    """
+    query = """
+    SELECT 
+        dni_paciente,
+        nombre,
+        sexo,
+        fecha_nacimiento,
+        obra_social,
+        localidad,
+        mail
+    FROM pacientes
+    ORDER BY nombre;
+    """
+    return execute_query(query, is_select=True)
+
+def add_paciente(dni_paciente, dni_psicologo, nombre, sexo, fecha_nacimiento, obra_social, localidad, mail):
+    """
+    Adds a new patient to the pacientes table.
+    
+    Args:
+        dni_paciente (str): Patient's DNI
+        dni_psicologo (str): Psychologist's DNI
+        nombre (str): Patient's full name
+        sexo (str): Patient's gender
+        fecha_nacimiento (date): Patient's birth date
+        obra_social (str): Patient's health insurance
+        localidad (str): Patient's locality
+        mail (str): Patient's email
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    query = """
+    INSERT INTO pacientes (dni_paciente, dni_psicologo, nombre, sexo, fecha_nacimiento, obra_social, localidad, mail)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+    """
+    params = (dni_paciente, dni_psicologo, nombre, sexo, fecha_nacimiento, obra_social, localidad, mail)
+    return execute_query(query, params=params, is_select=False)
+
+def get_pacientes_por_psicologo(dni_psicologo):
+    """
+    Obtiene todos los pacientes asociados a un psicólogo específico.
+    """
+    query = """
+    SELECT 
+        dni_paciente,
+        nombre,
+        sexo,
+        fecha_nacimiento,
+        obra_social,
+        localidad,
+        mail
+    FROM pacientes
+    WHERE dni_psicologo = %s
+    ORDER BY nombre;
+    """
+    
+    try:
+        result_df = execute_query(query, params=(dni_psicologo,), is_select=True)
+        return result_df
+        
+    except Exception as e:
+        st.error(f"Error al obtener pacientes del psicólogo {dni_psicologo}: {str(e)}")
+        return pd.DataFrame(columns=['dni_paciente', 'nombre', 'sexo', 'fecha_nacimiento', 'obra_social', 'localidad', 'mail'])
+
+# ============= CONFIGURACIÓN DE STREAMLIT =============
 
 # Configuración de la página
 st.set_page_config(
@@ -169,84 +406,42 @@ st.markdown("""
         border-color: #508ca4 !important;
         border-width: 2px !important;
     }
+    
+    /* Estilo para el campo de autenticación */
+    .auth-container {
+        background-color: white;
+        padding: 2rem;
+        border-radius: 10px;
+        border: 3px solid #001d4a;
+        box-shadow: 0 6px 12px rgba(0, 29, 74, 0.3);
+        margin-bottom: 2rem;
+    }
+    
+    .auth-title {
+        color: #001d4a;
+        font-size: 1.5rem;
+        font-weight: bold;
+        text-align: center;
+        margin-bottom: 1rem;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# Inicializar datos de ejemplo si no existen en session_state
-if 'pacientes' not in st.session_state:
-    st.session_state.pacientes = pd.DataFrame({
-        'DNI': ['37245687', '35784125', '24896532', '40125456', '30254863', '38756921', '20154789', '37654128', '32455701', '42145789', '22548963', '36541278', '28965412', '39874562', '25487963'],
-        'Nombre': [
-            'María García López',
-            'Juan Carlos Pérez',
-            'Ana Sofía Martínez',
-            'Roberto Luis González',
-            'Carmen Elena Rodríguez',
-            'Diego Alejandro Torres',
-            'Lucía Isabel Fernández',
-            'Miguel Ángel Ruiz',
-            'Valentina José Silva',
-            'Fernando David Castro',
-            'Gabriela María Herrera',
-            'Andrés Felipe Morales',
-            'Camila Andrea Vargas',
-            'Santiago Nicolás Jiménez',
-            'Isabella Victoria Restrepo'
-        ],
-        'Sexo': ['Femenino', 'Masculino', 'Femenino', 'Masculino', 'Femenino', 'Masculino', 'Femenino', 'Masculino', 'Femenino', 'Masculino', 'Femenino', 'Masculino', 'Femenino', 'Masculino', 'Femenino'],
-        'Fecha_Nacimiento': ['1985-03-15', '1978-11-22', '1992-07-08', '1965-01-30', '1988-09-12', '1975-05-18', '1990-12-03', '1982-08-25', '1995-04-07', '1970-06-14', '1987-10-29', '1993-02-11', '1986-07-16', '1977-09-05', '1991-11-20'],
-        'Obra_Social': [
-            'OSDE',
-            'Swiss Medical',
-            'Galeno',
-            'IOMA',
-            'Medicus',
-            'OSDE',
-            'Sancor Salud',
-            'Swiss Medical',
-            'IOMA',
-            'Galeno',
-            'Medicus',
-            'OSDE',
-            'Sancor Salud',
-            'Swiss Medical',
-            'IOMA'
-        ],
-        'Localidad': [
-            'Buenos Aires',
-            'Córdoba',
-            'Rosario',
-            'La Plata',
-            'Mar del Plata',
-            'Mendoza',
-            'Tucumán',
-            'Salta',
-            'Santa Fe',
-            'Neuquén',
-            'Bahía Blanca',
-            'Resistencia',
-            'Posadas',
-            'San Juan',
-            'Formosa'
-        ],
-        'Mail': [
-            'maria.garcia@email.com',
-            'juan.perez@email.com',
-            'ana.martinez@email.com',
-            'roberto.gonzalez@email.com',
-            'carmen.rodriguez@email.com',
-            'diego.torres@email.com',
-            'lucia.fernandez@email.com',
-            'miguel.ruiz@email.com',
-            'valentina.silva@email.com',
-            'fernando.castro@email.com',
-            'gabriela.herrera@email.com',
-            'andres.morales@email.com',
-            'camila.vargas@email.com',
-            'santiago.jimenez@email.com',
-            'isabella.restrepo@email.com'
-        ]
-    })
+# ============= APLICACIÓN STREAMLIT =============
+
+# Inicializar variables de sesión
+if 'authenticated_psicologo' not in st.session_state:
+    st.session_state.authenticated_psicologo = None
+if 'show_auth_form' not in st.session_state:
+    st.session_state.show_auth_form = False
+if 'show_patient_form' not in st.session_state:
+    st.session_state.show_patient_form = False
+
+# Función para cargar datos desde Supabase filtrados por psicólogo
+@st.cache_data(ttl=60)  # Cache por 60 segundos
+def load_pacientes_data_by_psicologo(dni_psicologo):
+    """Carga los datos de pacientes desde Supabase filtrados por psicólogo con cache"""
+    return get_pacientes_por_psicologo(dni_psicologo)
 
 # Título principal con fondo personalizado
 st.markdown("""
@@ -255,14 +450,76 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
+# Mostrar información del psicólogo autenticado si existe
+if st.session_state.authenticated_psicologo:
+    st.success(f"🔓 Sesión iniciada como psicólogo DNI: {st.session_state.authenticated_psicologo}")
+    
+    # Botón para cerrar sesión
+    col1, col2 = st.columns([1, 4])
+    with col1:
+        if st.button("🚪 Cerrar Sesión", type="secondary"):
+            st.session_state.authenticated_psicologo = None
+            st.session_state.show_auth_form = False
+            st.session_state.show_patient_form = False
+            st.cache_data.clear()
+            st.rerun()
+
 # Botón para nuevo paciente
 col1, col2 = st.columns([1, 4])
 with col1:
     if st.button("➕ Registrar nuevo paciente", type="primary", use_container_width=True):
-        st.session_state.show_form = True
+        if st.session_state.authenticated_psicologo:
+            st.session_state.show_patient_form = True
+        else:
+            st.session_state.show_auth_form = True
 
-# Mostrar el formulario si el botón fue presionado
-if st.session_state.get('show_form', False):
+# Mostrar formulario de autenticación si se requiere
+if st.session_state.get('show_auth_form', False) and not st.session_state.authenticated_psicologo:
+    st.markdown("""
+    <div class="auth-container">
+        <div class="auth-title">🔐 Autenticación de Psicólogo</div>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    with st.form("auth_form", clear_on_submit=False):
+        st.markdown("### Ingrese su DNI para continuar")
+        dni_auth = st.text_input(
+            "DNI del Psicólogo",
+            placeholder="Ingrese 8 números sin puntos ni espacios",
+            help="Debe ingresar su DNI registrado en el sistema (8 dígitos)",
+            max_chars=8
+        )
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            auth_submitted = st.form_submit_button("🔓 Verificar DNI", type="primary")
+        with col2:
+            auth_cancelled = st.form_submit_button("❌ Cancelar")
+        
+        if auth_submitted:
+            if dni_auth:
+                # Validar formato del DNI
+                if not validate_dni_format(dni_auth):
+                    st.error("⚠️ El DNI debe tener exactamente 8 dígitos sin puntos ni espacios.")
+                else:
+                    # Verificar si el DNI existe en la tabla usuario_psicologos
+                    if validate_psicologo_dni(dni_auth):
+                        st.session_state.authenticated_psicologo = dni_auth
+                        st.session_state.show_auth_form = False
+                        st.session_state.show_patient_form = True
+                        st.success("✅ Autenticación exitosa. Redirigiendo...")
+                        st.rerun()
+                    else:
+                        st.error("❌ El DNI insertado no es correcto. Por favor, vuelva a intentarlo.")
+            else:
+                st.error("⚠️ Por favor, ingrese su DNI.")
+        
+        if auth_cancelled:
+            st.session_state.show_auth_form = False
+            st.rerun()
+
+# Mostrar el formulario de paciente si el psicólogo está autenticado
+if st.session_state.get('show_patient_form', False) and st.session_state.authenticated_psicologo:
     st.markdown("### 📝 Registrar Nuevo Paciente")
     
     with st.form("nuevo_paciente_form", clear_on_submit=True):
@@ -272,7 +529,7 @@ if st.session_state.get('show_form', False):
             dni_paciente = st.text_input(
                 "DNI del Paciente *",
                 placeholder="Ej: 12345678",
-                help="Ingrese el DNI del paciente"
+                help="Ingrese el DNI del paciente (8 dígitos sin puntos ni espacios)"
             )
             
             nombre_paciente = st.text_input(
@@ -286,7 +543,8 @@ if st.session_state.get('show_form', False):
                 ["", "Masculino", "Femenino", "Otro"],
                 help="Seleccione el sexo del paciente"
             )
-            
+        
+        with col2:
             fecha_nacimiento = st.date_input(
                 "Fecha de Nacimiento *",
                 value=None,
@@ -294,8 +552,7 @@ if st.session_state.get('show_form', False):
                 max_value=date.today(),
                 help="Seleccione la fecha de nacimiento"
             )
-        
-        with col2:
+            
             obra_social = st.text_input(
                 "Obra Social",
                 placeholder="Ej: OSDE, Swiss Medical, IOMA...",
@@ -328,146 +585,158 @@ if st.session_state.get('show_form', False):
         # Procesar el formulario
         if submitted:
             if dni_paciente and nombre_paciente and sexo_paciente and fecha_nacimiento and localidad and mail:
-                # Verificar si el DNI ya existe
-                if dni_paciente in st.session_state.pacientes['DNI'].values:
+                
+                # Validar formato de DNI del paciente
+                if not validate_dni_format(dni_paciente):
+                    st.error("⚠️ El DNI del paciente debe tener exactamente 8 dígitos sin puntos ni espacios.")
+                
+                # Verificar si el DNI del paciente ya existe
+                elif check_paciente_exists(dni_paciente):
                     st.error("⚠️ Ya existe un paciente registrado con este DNI.")
+                
+                # Validar formato de email
+                elif "@" not in mail or "." not in mail:
+                    st.error("⚠️ Ingrese un email válido.")
+                
                 else:
-                    # Crear nueva fila
-                    nueva_fila = pd.DataFrame({
-                        'DNI': [dni_paciente],
-                        'Nombre': [nombre_paciente],
-                        'Sexo': [sexo_paciente],
-                        'Fecha_Nacimiento': [fecha_nacimiento.strftime('%Y-%m-%d')],
-                        'Obra_Social': [obra_social if obra_social else 'Sin obra social'],
-                        'Localidad': [localidad],
-                        'Mail': [mail]
-                    })
+                    # Proceder con el registro usando el DNI del psicólogo autenticado
+                    obra_social_final = obra_social if obra_social else 'Sin obra social'
                     
-                    # Agregar a la tabla
-                    st.session_state.pacientes = pd.concat([
-                        st.session_state.pacientes, 
-                        nueva_fila
-                    ], ignore_index=True)
-                    
-                    st.success("✅ ¡Paciente registrado exitosamente!")
-                    st.session_state.show_form = False
-                    st.rerun()
+                    if add_paciente(dni_paciente, st.session_state.authenticated_psicologo, 
+                                  nombre_paciente, sexo_paciente, fecha_nacimiento, 
+                                  obra_social_final, localidad, mail):
+                        st.success("✅ ¡Paciente registrado exitosamente!")
+                        st.session_state.show_patient_form = False
+                        # Limpiar cache para recargar datos
+                        st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error("❌ Error al registrar el paciente. Intente nuevamente.")
             else:
                 st.error("⚠️ Por favor, complete todos los campos obligatorios.")
         
         if cancelled:
-            st.session_state.show_form = False
+            st.session_state.show_patient_form = False
             st.rerun()
 
-# Mostrar la tabla de pacientes
-st.markdown("### 📋 Pacientes Registrados")
+# Mostrar datos solo si el psicólogo está autenticado
+if st.session_state.authenticated_psicologo:
+    # Cargar datos desde Supabase filtrados por el psicólogo autenticado
+    with st.spinner("Cargando sus pacientes desde Supabase..."):
+        df_pacientes = load_pacientes_data_by_psicologo(st.session_state.authenticated_psicologo)
 
-# Estadísticas rápidas
-st.markdown('<div class="metric-container">', unsafe_allow_html=True)
-col1, col2, col3, col4 = st.columns(4)
-with col1:
-    st.metric("Total de Pacientes", len(st.session_state.pacientes))
-with col2:
-    pacientes_masculinos = len(st.session_state.pacientes[st.session_state.pacientes['Sexo'] == 'Masculino'])
-    st.metric("Pacientes Masculinos", pacientes_masculinos)
-with col3:
-    pacientes_femeninos = len(st.session_state.pacientes[st.session_state.pacientes['Sexo'] == 'Femenino'])
-    st.metric("Pacientes Femeninos", pacientes_femeninos)
-with col4:
-    con_obra_social = len(st.session_state.pacientes[st.session_state.pacientes['Obra_Social'] != 'Sin obra social'])
-    st.metric("Con Obra Social", con_obra_social)
-st.markdown('</div>', unsafe_allow_html=True)
+    if df_pacientes.empty:
+        st.info("ℹ️ No tiene pacientes registrados aún. Use el botón 'Registrar nuevo paciente' para agregar su primer paciente.")
+    else:
+        # Mostrar la tabla de pacientes
+        st.markdown("### 📋 Sus Pacientes Registrados")
 
-# Filtros
-st.markdown("#### 🔍 Filtros")
-col1, col2, col3 = st.columns(3)
+        # Estadísticas rápidas
+        st.markdown('<div class="metric-container">', unsafe_allow_html=True)
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total de Pacientes", len(df_pacientes))
+        with col2:
+            pacientes_masculinos = len(df_pacientes[df_pacientes['sexo'] == 'Masculino'])
+            st.metric("Pacientes Masculinos", pacientes_masculinos)
+        with col3:
+            pacientes_femeninos = len(df_pacientes[df_pacientes['sexo'] == 'Femenino'])
+            st.metric("Pacientes Femeninos", pacientes_femeninos)
+        with col4:
+            con_obra_social = len(df_pacientes[df_pacientes['obra_social'] != 'Sin obra social'])
+            st.metric("Con Obra Social", con_obra_social)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-with col1:
-    filtro_dni = st.text_input("Buscar por DNI", placeholder="Ingrese DNI para filtrar")
+        # Filtros
+        st.markdown("#### 🔍 Filtros")
+        col1, col2, col3 = st.columns(3)
 
-with col2:
-    filtro_sexo = st.selectbox(
-        "Filtrar por sexo",
-        ["Todos", "Masculino", "Femenino", "Otro"]
-    )
+        with col1:
+            filtro_dni = st.text_input("Buscar por DNI", placeholder="Ingrese DNI para filtrar")
 
-with col3:
-    filtro_obra_social = st.selectbox(
-        "Filtrar por obra social",
-        ["Todas"] + sorted(st.session_state.pacientes['Obra_Social'].unique().tolist())
-    )
+        with col2:
+            filtro_sexo = st.selectbox(
+                "Filtrar por sexo",
+                ["Todos", "Masculino", "Femenino", "Otro"]
+            )
 
-# Aplicar filtros
-df_filtrado = st.session_state.pacientes.copy()
+        with col3:
+            obras_sociales_unicas = ["Todas"] + sorted(df_pacientes['obra_social'].unique().tolist())
+            filtro_obra_social = st.selectbox(
+                "Filtrar por obra social",
+                obras_sociales_unicas
+            )
 
-if filtro_dni:
-    df_filtrado = df_filtrado[df_filtrado['DNI'].str.contains(filtro_dni, na=False)]
+        # Aplicar filtros
+        df_filtrado = df_pacientes.copy()
 
-if filtro_sexo != "Todos":
-    df_filtrado = df_filtrado[df_filtrado['Sexo'] == filtro_sexo]
+        if filtro_dni:
+            df_filtrado = df_filtrado[df_filtrado['dni_paciente'].astype(str).str.contains(filtro_dni, na=False)]
 
-if filtro_obra_social != "Todas":
-    df_filtrado = df_filtrado[df_filtrado['Obra_Social'] == filtro_obra_social]
+        if filtro_sexo != "Todos":
+            df_filtrado = df_filtrado[df_filtrado['sexo'] == filtro_sexo]
 
-# Configurar la visualización de la tabla
-st.dataframe(
-    df_filtrado,
-    use_container_width=True,
-    hide_index=True,
-    column_config={
-        "DNI": st.column_config.TextColumn(
-            "DNI",
-            help="Documento Nacional de Identidad del paciente",
-            max_chars=50
-        ),
-        "Nombre": st.column_config.TextColumn(
-            "Nombre Completo",
-            help="Nombre completo del paciente",
-            max_chars=100
-        ),
-        "Sexo": st.column_config.TextColumn(
-            "Sexo",
-            help="Sexo del paciente",
-            max_chars=20
-        ),
-        "Fecha_Nacimiento": st.column_config.DateColumn(
-            "Fecha de Nacimiento",
-            help="Fecha de nacimiento del paciente",
-            format="DD/MM/YYYY"
-        ),
-        "Obra_Social": st.column_config.TextColumn(
-            "Obra Social",
-            help="Obra social del paciente",
-            max_chars=80
-        ),
-        "Localidad": st.column_config.TextColumn(
-            "Localidad",
-            help="Localidad de residencia del paciente",
-            max_chars=80
-        ),
-        "Mail": st.column_config.TextColumn(
-            "Email",
-            help="Correo electrónico del paciente",
-            max_chars=100
+        if filtro_obra_social != "Todas":
+            df_filtrado = df_filtrado[df_filtrado['obra_social'] == filtro_obra_social]
+
+        # Configurar la visualización de la tabla
+        st.dataframe(
+            df_filtrado,
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "dni_paciente": st.column_config.TextColumn(
+                    "DNI",
+                    help="Documento Nacional de Identidad del paciente",
+                    max_chars=50
+                ),
+                "nombre": st.column_config.TextColumn(
+                    "Nombre Completo",
+                    help="Nombre completo del paciente",
+                    max_chars=100
+                ),
+                "sexo": st.column_config.TextColumn(
+                    "Sexo",
+                    help="Sexo del paciente",
+                    max_chars=20
+                ),
+                "fecha_nacimiento": st.column_config.DateColumn(
+                    "Fecha de Nacimiento",
+                    help="Fecha de nacimiento del paciente",
+                    format="DD/MM/YYYY"
+                ),
+                "obra_social": st.column_config.TextColumn(
+                    "Obra Social",
+                    help="Obra social del paciente",
+                    max_chars=80
+                ),
+                "localidad": st.column_config.TextColumn(
+                    "Localidad",
+                    help="Localidad de residencia del paciente",
+                    max_chars=80
+                ),
+                "mail": st.column_config.TextColumn(
+                    "Email",
+                    help="Correo electrónico del paciente",
+                    max_chars=100
+                )
+            },
+            height=400
         )
-    },
-    height=400
-)
 
-# Información adicional
-st.markdown("---")
-col1, col2 = st.columns(2)
+        # Botón para refrescar datos
+        if st.button("🔄 Refrescar datos", help="Recarga los datos desde la base de datos"):
+            st.cache_data.clear()
+            st.rerun()
 
-with col1:
-    st.info("💡 *Consejos de uso:*\n- Use el botón 'Registrar nuevo paciente' para agregar registros\n- Los filtros le ayudan a encontrar pacientes específicos\n- No se pueden registrar pacientes con DNI duplicado")
-
-with col2:
-    st.warning("⚠️ *Importante:*\n- Los campos marcados con * son obligatorios\n- Los datos se reinician al cerrar la aplicación\n- Mantenga la confidencialidad de la información personal")
+else:
+    # Mostrar mensaje cuando no hay psicólogo autenticado
+    st.info("🔒 Para ver y gestionar sus pacientes, presione el botón 'Registrar nuevo paciente' para autenticarse primero.")
 
 # Footer
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; color: #001d4a; font-style: italic; padding: 1rem;">
-    Sistema de Registro de Pacientes - Desarrollado con Streamlit
+    Sistema de Registro de Pacientes - Conectado a Supabase
 </div>
 """, unsafe_allow_html=True)
