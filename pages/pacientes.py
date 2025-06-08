@@ -5,36 +5,34 @@ import os
 from dotenv import load_dotenv
 from datetime import datetime, date
 
-# Verificación de inicio de sesión
-# Esto debe estar al PRINCIPIO del script de la página protegida
-if 'logged_in' not in st.session_state or not st.session_state.logged_in:
-    st.warning("⚠️ Debes iniciar sesión para acceder a esta página.")
-    # El botón redirige a la página principal donde está el login
-    if st.button("Ir a la página de inicio de sesión"):
-        st.switch_page("Inicio.py")
-    st.stop() # Detiene la ejecución del resto de la página si no está logueado
-
-# --- FIN DE LA SECCIÓN DE AUTENTICACIÓN ---
-
-
-
-# Verificación de inicio de sesión
-# Esto debe estar al PRINCIPIO del script de la página protegida
-if 'logged_in' not in st.session_state or not st.session_state.logged_in:
-    st.warning("⚠️ Debes iniciar sesión para acceder a esta página.")
-    # El botón redirige a la página principal donde está el login
-    if st.button("Ir a la página de inicio de sesión"):
-        st.switch_page("Inicio.py")
-    st.stop() # Detiene la ejecución del resto de la página si no está logueado
-
-# --- FIN DE LA SECCIÓN DE AUTENTICACIÓN ---
-
-
-
 # Load environment variables from .env file
 load_dotenv()
 
-# ============= FUNCIONES DE BASE DE DATOS =============
+# ============= AUTHENTICATION CHECK AND DNI RETRIEVAL =============
+
+# This must be at the BEGINNING of the protected page script
+if 'logged_in' not in st.session_state or not st.session_state.logged_in:
+    st.warning("⚠️ Debes iniciar sesión para acceder a esta página.")
+    if st.button("Ir a la página de inicio de sesión"):
+        st.switch_page("Inicio.py") # Make sure this path is correct for your login page
+    st.stop() # Stop execution if not logged in
+
+# Retrieve the authenticated psychologist's DNI from session_state.user_data
+# This assumes 'user_data' is set by your 'Inicio.py' upon successful login.
+if 'user_data' in st.session_state and 'dni' in st.session_state.user_data:
+    st.session_state.authenticated_psicologo = st.session_state.user_data['dni']
+else:
+    # This scenario should ideally not happen if login is mandatory,
+    # but it's a safeguard if DNI is missing despite being logged_in.
+    st.warning("⚠️ No se pudo obtener el DNI del psicólogo autenticado. Por favor, vuelva a iniciar sesión.")
+    if st.button("Ir a la página de inicio de sesión"):
+        st.switch_page("Inicio.py")
+    st.stop()
+
+# --- END OF AUTHENTICATION SECTION ---
+
+
+# ============= DATABASE FUNCTIONS =============
 
 def connect_to_supabase():
     """
@@ -112,7 +110,7 @@ def execute_query(query, params=None, is_select=True):
             conn.rollback()
         return pd.DataFrame() if is_select else False
 
-# ============= FUNCIONES DE VALIDACIÓN =============
+# ============= VALIDATION FUNCTIONS =============
 
 def validate_dni_format(dni):
     """
@@ -132,6 +130,8 @@ def validate_dni_format(dni):
         return True
     return False
 
+# This function is no longer directly used for in-page authentication,
+# as authentication is expected to happen on the login page (Inicio.py).
 def validate_psicologo_dni(dni_psicologo):
     """
     Validates if the psychologist DNI exists in the usuario_psicologos table.
@@ -168,11 +168,11 @@ def check_paciente_exists(dni_paciente):
     
     return result.iloc[0]['count'] > 0
 
-# ============= FUNCIONES DE PACIENTES =============
+# ============= PATIENT FUNCTIONS =============
 
 def get_all_pacientes():
     """
-    Obtiene todos los pacientes de la base de datos.
+    Obtiene todos los pacientes de la base de datos. (This function is not directly used in this modified version)
     """
     query = """
     SELECT 
@@ -238,19 +238,19 @@ def get_pacientes_por_psicologo(dni_psicologo):
         st.error(f"Error al obtener pacientes del psicólogo {dni_psicologo}: {str(e)}")
         return pd.DataFrame(columns=['dni_paciente', 'nombre', 'sexo', 'fecha_nacimiento', 'obra_social', 'localidad', 'mail'])
 
-# ============= CONFIGURACIÓN DE STREAMLIT =============
+# ============= STREAMLIT CONFIGURATION =============
 
-# Configuración de la página
+# Page configuration
 st.set_page_config(
     page_title="Sistema de Pacientes",
     page_icon="👥",
     layout="wide"
 )
 
-# CSS personalizado con la paleta de colores
+# Custom CSS with color palette
 st.markdown("""
 <style>
-    /* Variables de colores */
+    /* Color variables */
     :root {
         --primary-dark: #001d4a;
         --primary-medium: #508ca4;
@@ -258,13 +258,13 @@ st.markdown("""
         --background-accent: #c2bdb6;
     }
     
-    /* Fondo general */
+    /* General background */
     .main .block-container {
         background-color: var(--primary-light);
         padding: 2rem 1rem;
     }
     
-    /* Estilo del título principal */
+    /* Main title style */
     .title-container {
         background-color: #c2bdb6;
         padding: 1.5rem;
@@ -282,7 +282,7 @@ st.markdown("""
         text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
     }
     
-    /* Botones principales */
+    /* Main buttons */
     .stButton > button {
         background-color: #001d4a !important;
         color: white !important;
@@ -298,7 +298,7 @@ st.markdown("""
         box-shadow: 0 4px 8px rgba(0, 29, 74, 0.3) !important;
     }
     
-    /* Formularios */
+    /* Forms */
     .stForm {
         background-color: white;
         padding: 2rem;
@@ -307,7 +307,7 @@ st.markdown("""
         box-shadow: 0 4px 6px rgba(80, 140, 164, 0.2);
     }
     
-    /* Inputs de texto */
+    /* Text inputs */
     .stTextInput > div > div > input,
     .stTextArea > div > div > textarea,
     .stSelectbox > div > div > select,
@@ -334,7 +334,7 @@ st.markdown("""
         font-weight: bold !important;
     }
     
-    /* Métricas */
+    /* Metrics */
     .metric-container > div {
         background-color: white;
         border: 2px solid #508ca4;
@@ -356,7 +356,7 @@ st.markdown("""
         overflow: hidden;
     }
     
-    /* Mensajes de alerta */
+    /* Alert messages */
     .stAlert {
         border-radius: 8px;
     }
@@ -385,7 +385,7 @@ st.markdown("""
         color: #001d4a;
     }
     
-    /* Subtítulos */
+    /* Subheadings */
     h3 {
         color: #001d4a !important;
         border-bottom: 2px solid #508ca4;
@@ -396,18 +396,18 @@ st.markdown("""
         color: #001d4a !important;
     }
     
-    /* Sidebar si se usa */
+    /* Sidebar if used */
     .css-1d391kg {
         background-color: #001d4a;
     }
     
-    /* Separadores */
+    /* Separators */
     hr {
         border-color: #508ca4 !important;
         border-width: 2px !important;
     }
     
-    /* Estilo para el campo de autenticación */
+    /* Style for authentication field (Removed in this version as auth is now via Inicio.py) */
     .auth-container {
         background-color: white;
         padding: 2rem;
@@ -427,98 +427,62 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ============= APLICACIÓN STREAMLIT =============
+# ============= STREAMLIT APPLICATION =============
 
-# Inicializar variables de sesión
-if 'authenticated_psicologo' not in st.session_state:
-    st.session_state.authenticated_psicologo = None
-if 'show_auth_form' not in st.session_state:
-    st.session_state.show_auth_form = False
+# Initialize session variables
+# authenticated_psicologo is now set at the top from st.session_state.user_data
 if 'show_patient_form' not in st.session_state:
     st.session_state.show_patient_form = False
 
-# Función para cargar datos desde Supabase filtrados por psicólogo
-@st.cache_data(ttl=60)  # Cache por 60 segundos
+# Function to load data from Supabase filtered by psychologist
+@st.cache_data(ttl=60)  # Cache for 60 seconds
 def load_pacientes_data_by_psicologo(dni_psicologo):
-    """Carga los datos de pacientes desde Supabase filtrados por psicólogo con cache"""
+    """Loads patient data from Supabase filtered by psychologist with caching"""
     return get_pacientes_por_psicologo(dni_psicologo)
 
-# Título principal con fondo personalizado
+# Main title with custom background
 st.markdown("""
 <div class="title-container">
     <h1 class="title-text">👥 Pacientes</h1>
 </div>
 """, unsafe_allow_html=True)
 
-# Mostrar información del psicólogo autenticado si existe
+# Display authenticated psychologist information
+# This block will always execute if the user is logged in due to the initial check
 if st.session_state.authenticated_psicologo:
     st.success(f"🔓 Sesión iniciada como psicólogo DNI: {st.session_state.authenticated_psicologo}")
     
-    # Botón para cerrar sesión
+    # Button to close session
     col1, col2 = st.columns([1, 4])
     with col1:
         if st.button("🚪 Cerrar Sesión", type="secondary"):
+            st.session_state.logged_in = False # Set logged_in to False
             st.session_state.authenticated_psicologo = None
-            st.session_state.show_auth_form = False
             st.session_state.show_patient_form = False
+            # Clear user_data and other session state variables related to login
+            if 'user_data' in st.session_state:
+                del st.session_state.user_data
+            # If you used 'psicologo_dni' previously, clear it too
+            if 'psicologo_dni' in st.session_state:
+                del st.session_state.psicologo_dni 
             st.cache_data.clear()
-            st.rerun()
+            st.switch_page("Inicio.py") # Redirect to login page
+            # st.rerun() # Use rerun if you want to stay on the same page and clear it.
+                          # But switch_page is better for a complete logout.
 
-# Botón para nuevo paciente
+# Button for new patient
 col1, col2 = st.columns([1, 4])
 with col1:
     if st.button("➕ Registrar nuevo paciente", type="primary", use_container_width=True):
-        if st.session_state.authenticated_psicologo:
-            st.session_state.show_patient_form = True
-        else:
-            st.session_state.show_auth_form = True
+        # The psychologist is already authenticated at this point due to the initial checks
+        st.session_state.show_patient_form = True
 
-# Mostrar formulario de autenticación si se requiere
-if st.session_state.get('show_auth_form', False) and not st.session_state.authenticated_psicologo:
-    st.markdown("""
-    <div class="auth-container">
-        <div class="auth-title">🔐 Autenticación de Psicólogo</div>
-    </div>
-    """, unsafe_allow_html=True)
-    
-    with st.form("auth_form", clear_on_submit=False):
-        st.markdown("### Ingrese su DNI para continuar")
-        dni_auth = st.text_input(
-            "DNI del Psicólogo",
-            placeholder="Ingrese 8 números sin puntos ni espacios",
-            help="Debe ingresar su DNI registrado en el sistema (8 dígitos)",
-            max_chars=8
-        )
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            auth_submitted = st.form_submit_button("🔓 Verificar DNI", type="primary")
-        with col2:
-            auth_cancelled = st.form_submit_button("❌ Cancelar")
-        
-        if auth_submitted:
-            if dni_auth:
-                # Validar formato del DNI
-                if not validate_dni_format(dni_auth):
-                    st.error("⚠️ El DNI debe tener exactamente 8 dígitos sin puntos ni espacios.")
-                else:
-                    # Verificar si el DNI existe en la tabla usuario_psicologos
-                    if validate_psicologo_dni(dni_auth):
-                        st.session_state.authenticated_psicologo = dni_auth
-                        st.session_state.show_auth_form = False
-                        st.session_state.show_patient_form = True
-                        st.success("✅ Autenticación exitosa. Redirigiendo...")
-                        st.rerun()
-                    else:
-                        st.error("❌ El DNI insertado no es correcto. Por favor, vuelva a intentarlo.")
-            else:
-                st.error("⚠️ Por favor, ingrese su DNI.")
-        
-        if auth_cancelled:
-            st.session_state.show_auth_form = False
-            st.rerun()
+# The in-page authentication form has been removed
+# if st.session_state.get('show_auth_form', False) and not st.session_state.authenticated_psicologo:
+#    ... (Removed code for authentication form) ...
 
-# Mostrar el formulario de paciente si el psicólogo está autenticado
+
+# Show patient form if psychologist is authenticated and the button was pressed
 if st.session_state.get('show_patient_form', False) and st.session_state.authenticated_psicologo:
     st.markdown("### 📝 Registrar Nuevo Paciente")
     
@@ -573,7 +537,7 @@ if st.session_state.get('show_patient_form', False) and st.session_state.authent
         
         st.markdown("*Campos obligatorios")
         
-        # Botones del formulario
+        # Form buttons
         col1, col2, col3 = st.columns([1, 1, 2])
         
         with col1:
@@ -582,24 +546,24 @@ if st.session_state.get('show_patient_form', False) and st.session_state.authent
         with col2:
             cancelled = st.form_submit_button("❌ Cancelar")
         
-        # Procesar el formulario
+        # Process the form
         if submitted:
             if dni_paciente and nombre_paciente and sexo_paciente and fecha_nacimiento and localidad and mail:
                 
-                # Validar formato de DNI del paciente
+                # Validate patient DNI format
                 if not validate_dni_format(dni_paciente):
                     st.error("⚠️ El DNI del paciente debe tener exactamente 8 dígitos sin puntos ni espacios.")
                 
-                # Verificar si el DNI del paciente ya existe
+                # Check if patient DNI already exists
                 elif check_paciente_exists(dni_paciente):
                     st.error("⚠️ Ya existe un paciente registrado con este DNI.")
                 
-                # Validar formato de email
+                # Validate email format
                 elif "@" not in mail or "." not in mail:
                     st.error("⚠️ Ingrese un email válido.")
                 
                 else:
-                    # Proceder con el registro usando el DNI del psicólogo autenticado
+                    # Proceed with registration using the authenticated psychologist's DNI
                     obra_social_final = obra_social if obra_social else 'Sin obra social'
                     
                     if add_paciente(dni_paciente, st.session_state.authenticated_psicologo, 
@@ -607,7 +571,7 @@ if st.session_state.get('show_patient_form', False) and st.session_state.authent
                                   obra_social_final, localidad, mail):
                         st.success("✅ ¡Paciente registrado exitosamente!")
                         st.session_state.show_patient_form = False
-                        # Limpiar cache para recargar datos
+                        # Clear cache to reload data
                         st.cache_data.clear()
                         st.rerun()
                     else:
@@ -619,19 +583,20 @@ if st.session_state.get('show_patient_form', False) and st.session_state.authent
             st.session_state.show_patient_form = False
             st.rerun()
 
-# Mostrar datos solo si el psicólogo está autenticado
+# Display data only if the psychologist is authenticated
+# This block will always execute if the user is logged in
 if st.session_state.authenticated_psicologo:
-    # Cargar datos desde Supabase filtrados por el psicólogo autenticado
+    # Load data from Supabase filtered by the authenticated psychologist
     with st.spinner("Cargando sus pacientes desde Supabase..."):
         df_pacientes = load_pacientes_data_by_psicologo(st.session_state.authenticated_psicologo)
 
     if df_pacientes.empty:
         st.info("ℹ️ No tiene pacientes registrados aún. Use el botón 'Registrar nuevo paciente' para agregar su primer paciente.")
     else:
-        # Mostrar la tabla de pacientes
+        # Display the patient table
         st.markdown("### 📋 Sus Pacientes Registrados")
 
-        # Estadísticas rápidas
+        # Quick statistics
         st.markdown('<div class="metric-container">', unsafe_allow_html=True)
         col1, col2, col3, col4 = st.columns(4)
         with col1:
@@ -647,7 +612,7 @@ if st.session_state.authenticated_psicologo:
             st.metric("Con Obra Social", con_obra_social)
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # Filtros
+        # Filters
         st.markdown("#### 🔍 Filtros")
         col1, col2, col3 = st.columns(3)
 
@@ -667,7 +632,7 @@ if st.session_state.authenticated_psicologo:
                 obras_sociales_unicas
             )
 
-        # Aplicar filtros
+        # Apply filters
         df_filtrado = df_pacientes.copy()
 
         if filtro_dni:
@@ -679,7 +644,7 @@ if st.session_state.authenticated_psicologo:
         if filtro_obra_social != "Todas":
             df_filtrado = df_filtrado[df_filtrado['obra_social'] == filtro_obra_social]
 
-        # Configurar la visualización de la tabla
+        # Configure table display
         st.dataframe(
             df_filtrado,
             use_container_width=True,
@@ -724,14 +689,14 @@ if st.session_state.authenticated_psicologo:
             height=400
         )
 
-        # Botón para refrescar datos
+        # Button to refresh data
         if st.button("🔄 Refrescar datos", help="Recarga los datos desde la base de datos"):
             st.cache_data.clear()
             st.rerun()
 
 else:
-    # Mostrar mensaje cuando no hay psicólogo autenticado
-    st.info("🔒 Para ver y gestionar sus pacientes, presione el botón 'Registrar nuevo paciente' para autenticarse primero.")
+    # This else block should theoretically not be reached if the initial checks work correctly
+    st.info("🔒 Para ver y gestionar sus pacientes, inicie sesión como psicólogo desde la página principal.")
 
 # Footer
 st.markdown("---")
