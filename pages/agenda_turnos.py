@@ -3,26 +3,11 @@ import pandas as pd
 import datetime
 from datetime import timedelta
 import calendar
-# REMOVIDO: from supabase.client import create_client, Client
 from dateutil.parser import parse
 
 # --- IMPORTAR FUNCIONES DE BASE DE DATOS ---
+# Asegúrate de que 'functions.py' esté en el mismo directorio o en el PYTHONPATH
 from functions import connect_to_supabase, execute_query
-
-# REMOVIDO: Inicialización del cliente Supabase directo en este archivo
-# @st.cache_resource
-# def init_supabase_client():
-#     try:
-#         url = st.secrets["supabase_url"]
-#         key = st.secrets["supabase_key"]
-#         return create_client(url, key)
-#     except Exception as e:
-#         st.error(f"Error al inicializar el cliente Supabase: {e}")
-#         return None
-# supabase_client = init_supabase_client()
-# if not supabase_client:
-#     st.stop()
-
 
 # --- FUNCIÓN CORREGIDA: CARGAR PACIENTES ASIGNADOS AL PSICÓLOGO ---
 def cargar_pacientes_asignados_al_psicologo(dni_psicologo):
@@ -204,108 +189,288 @@ hide_streamlit_style = """
         display: none;
     }
 
+    /* OCULTAR EL GLOBO AZUL SUPERIOR */
+    .stApp > header {
+        display: none !important;
+    }
+    
+    /* OCULTAR CONTENEDORES VACÍOS */
+    .element-container:empty {
+        display: none !important;
+    }
+    
+    /* OCULTAR DIVS VACÍOS O CON SOLO ESPACIOS */
+    div:empty {
+        display: none !important;
+    }
+    
+    /* OCULTAR CONTENEDORES DE STREAMLIT VACÍOS */
+    .stMarkdown:has(div:empty) {
+        display: none !important;
+    }
+
+    /* Estilos para botones primarios */
     .stButton > button[kind="primary"] {
-        background-color: #1976d2 !important;
-        border-color: #1976d2 !important;
+        background-color: #222E50 !important; /* Azul más claro */
+        border-color: #222E50 !important;
         color: white !important;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        transition: all 0.3s ease-in-out;
     }
     .stButton > button[kind="primary"]:hover {
-        background-color: #1565c0 !important;
-        border-color: #1565c0 !important;
+        background-color: #068D9D !important; /* Azul intermedio al pasar el mouse */
+        border-color: #068D9D !important;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.25);
     }
 
-    .stDateInput > div > div > input {
-        border-color: #1976d2 !important;
+    /* Estilos para botones secundarios (ej. eliminar) */
+    .stButton > button:not([kind="primary"]) {
+        background-color: #c42021 !important; /* Rojo para eliminar */
+        border-color: #c42021 !important;
+        color: white !important;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease-in-out;
+    }
+    .stButton > button:not([kind="primary"]):hover {
+        background-color: #d32f2f !important; /* Rojo más oscuro al pasar el mouse */
+        border-color: #d32f2f !important;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
     }
 
+    /* Estilos para DateInput y Selectbox */
+    .stDateInput > div > div > input,
+    .stSelectbox > div > div > div {
+        border-color: #90caf9 !important; /* Azul claro para bordes de inputs */
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+    .stDateInput > div > div > input:focus,
+    .stSelectbox > div > div > div:focus {
+        border-color: #42a5f5 !important; /* Azul más intenso al enfocar */
+        box-shadow: 0 0 0 0.2rem rgba(66, 165, 245, 0.25);
+    }
+
+    /* Estilos para el calendario emergente */
     div[data-baseweb="calendar"] [aria-selected="true"] {
-        background-color: #1976d2 !important;
+        background-color: #42a5f5 !important; /* Azul claro para día seleccionado */
     }
 
     div[data-baseweb="calendar"] [data-date]:hover {
-        background-color: #e3f2fd !important;
+        background-color: #e3f2fd !important; /* Azul muy claro al pasar el mouse */
     }
 
-    .stSelectbox > div > div > div {
-        border-color: #1976d2 !important;
+    /* General input styling */
+    .stTextInput>div>div>input {
+        border-radius: 8px;
+        border: 1px solid #90caf9;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .stTextInput>div>div>input:focus {
+        border-color: #42a5f5;
+        box-shadow: 0 0 0 0.2rem rgba(66, 165, 245, 0.25);
     }
 </style>
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
-# Inicializar session state para almacenar turnos si no existe
-if 'turnos' not in st.session_state:
-    st.session_state.turnos = []
-
-# CSS personalizado para mejorar la apariencia
+# CSS personalizado para mejorar la apariencia (más enfocado en tarjetas y contenedores)
 st.markdown("""
 <style>
-    .main-title {
-        font-size: 2.5rem;
+    /* Estilos para el contenedor de la barra de título de color - AHORA INCLUYE EL TÍTULO */
+    .colored-title-bar {
+        background-color: #c2bdb6; /* Color de fondo del título */
+        padding: 1.5rem 2rem; /* Más padding para hacer más prominente */
+        border-radius: 9px;
+        margin-bottom: 2rem;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        width: 100%;
+    }
+    
+    /* Estilos para el texto del título dentro de la barra de color */
+    .main-section-title {
+        font-size: 2.8rem; /* Título más grande */
         font-weight: bold;
         color: #333;
-        margin-bottom: 1rem;
-        margin-top: 0rem;
+        margin: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.7rem;
+        text-align: center;
     }
+
     .welcome-card {
-        background: linear-gradient(90deg, #1976d2, #42a5f5);
-        padding: 1rem 1.5rem;
-        border-radius: 10px;
-        color: white;
-        margin-bottom: 1.5rem;
+        background: linear-gradient(90deg, #1976d2, #64b5f6); /* Degradado de azul más suave */
+        padding: 1.5rem 2rem; /* Más padding */
+        border-radius: 12px; /* Más redondeado */
+        color: blue;
+        margin-bottom: 2rem;
         display: flex;
         justify-content: space-between;
         align-items: center;
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2); /* Sombra más pronunciada */
+    }
+    .welcome-card h3 {
+        color: white !important;
+        margin: 0;
+    }
+    .welcome-card p {
+        color: rgba(255, 255, 255, 0.8);
+        margin: 0;
+        font-size: 0.9rem;
     }
     .form-container {
-        background-color: #f8f9fa;
-        padding: 2rem;
-        border-radius: 10px;
-        border: 2px solid #e9ecef;
+        background-color: beige; /* Fondo blanco para el formulario */
+        padding: 2.5rem;
+        border-radius: 12px;
+        border: 1px solid #e0e0e0;
         margin-bottom: 2rem;
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1); /* Sombra para el formulario */
     }
     .calendar-container {
         background-color: white;
-        padding: 0rem;
-        border-radius: 10px;
-        border: none;
+        padding: 1.5rem; /* Más padding para el calendario */
+        border-radius: 12px;
+        border: 1px solid #e0e0e0;
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1); /* Sombra para el calendario */
+        margin-bottom: 2rem;
     }
     .turno-card {
-        background-color: #e3f2fd;
-        padding: 1rem;
-        border-radius: 8px;
-        border-left: 4px solid #1976d2;
+        background-color: #B9D7E0; /* Azul claro para tarjetas de turno */
+        padding: 1rem 1.5rem;
+        border-radius: 10px;
+        border-left: 5px solid #222E50; /* Borde izquierdo más grueso y oscuro */
         margin-bottom: 1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1); /* Sombra sutil */
+    }
+    .turno-card strong {
+        color: #222E50; /* Azul oscuro para el nombre del paciente */
+    }
+    .turno-card span {
+        color: #222E50; /* Azul medio para fecha y hora */
+        font-weight: 500;
     }
     .next-appointment {
-        background-color: #e8f4fd;
-        padding: 1rem;
-        border-radius: 10px;
-        border: 1px solid #64b5f6;
+        background-color: #bbdefb; /* Azul muy claro para el próximo turno */
+        padding: 1.5rem;
+        border-radius: 12px;
+        border: 1px solid #222E50; /*Este no se que hace !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
         margin-top: 2rem;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    }
+    .next-appointment h3 {
+        color: #1a237e !important;
+        margin-bottom: 1rem;
+    }
+    .next-appointment .day-circle {
+        background-color: #B9D7E0; */!!!!!!!!!!!!!!!!!!!
+        color: white;
+        border-radius: 50%;
+        width: 3.5rem; /* Más grande */
+        height: 3.5rem; /* Más grande */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 1.5rem; /* Fuente más grande */
+        margin-right: 1rem;
+        flex-shrink: 0;
+    }
+    .next-appointment .details {
+        flex-grow: 1;
+    }
+    .next-appointment .details strong {
+        font-size: 1.1rem;
+        color: #1a237e;
+    }
+    .next-appointment .details small {
+        color: #3f51b5;
+        font-size: 0.9rem;
+    }
+
+    /* Estilos para el calendario de días */
+    .day-cell {
+        background-color: white;
+        padding: 0.5rem;
+        border-radius: 5px;
+        min-height: 90px; /* Un poco más de altura */
+        border: 1px solid #e0e0e0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        position: relative;
+        overflow: hidden;
+    }
+    .day-cell.today {
+        background-color: #B9D7E0; /* Fondo para el día actual */
+        border: 2px solid #B9D7E0; /* Borde para el día actual */
+    }
+    .day-cell .day-number {
+        font-weight: bold;
+        text-align: center;
+        margin-bottom: 5px;
+        color: #333;
+        font-size: 1.1rem;
+    }
+    .day-cell .appointment-bubble {
+        background-color: #1B9AAA; /* Azul claro para burbujas de turno */
+        color: white;
+        font-size: 0.7rem;
+        padding: 2px 6px;
+        margin: 2px 0;
+        border-radius: 12px; /* Más redondeado */
+        text-align: center;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 95%; /* Asegura que no se desborde */
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+    .day-cell .more-appointments {
+        font-size: 0.7rem;
+        text-align: center;
+        color: #666;
+        margin-top: 5px;
     }
 </style>
 """, unsafe_allow_html=True)
 
+# Inicializar session state para almacenar turnos si no existe
+if 'turnos' not in st.session_state:
+    st.session_state.turnos = []
+
 # --- MENSAJE DE BIENVENIDA Y BOTÓN DE SALIR ---
 user = st.session_state.user_data
 
-with st.container():
-    col_welcome, col_logout = st.columns([4, 1])
-    with col_welcome:
-        st.markdown(f"### 👋 ¡Hola, {user.get('nombre', 'Profesional')}!", unsafe_allow_html=True)
-        st.caption(f"DNI: {user.get('dni')} | Email: {user.get('mail')}")
+st.markdown('<div class="welcome-card">', unsafe_allow_html=True)
+col_welcome, col_logout = st.columns([4, 1])
+with col_welcome:
+    st.markdown(f"<h3>👋 ¡Hola, {user.get('nombre', 'Profesional')}!</h3>", unsafe_allow_html=True)
+    st.markdown(f"<p>DNI: {user.get('dni')} | Email: {user.get('mail')}</p>", unsafe_allow_html=True)
+with col_logout:
+    st.markdown("<div style='display: flex; justify-content: flex-end; align-items: center; height: 100%;'>", unsafe_allow_html=True)
+    if st.button(" Cerrar Sesión", key="logout_button_main", use_container_width=True):
+        cerrar_sesion()
+    st.markdown("</div>", unsafe_allow_html=True)
+st.markdown('</div>', unsafe_allow_html=True)
 
-    with col_logout:
-        if st.button("🚪 Cerrar Sesión", key="logout_button_main", use_container_width=True):
-            cerrar_sesion()
+# --- Título principal de la agenda (AHORA INTEGRADO EN EL CONTENEDOR DE COLOR) ---
+st.markdown("""
+<div class="colored-title-bar">
+    <h1 class="main-section-title"> AGENDA DE TURNOS </h1>
+</div>
+""", unsafe_allow_html=True)
 
-st.markdown("---")
-
-# Título principal
-st.markdown('<h1 class="main-title">Agenda de turnos</h1>', unsafe_allow_html=True)
-
-# Layout en columnas
+# --- Contenedor principal con columnas ---
 col1, col2 = st.columns([1, 2])
 
 # --- Fetch appointments for the logged-in psychologist ONCE when the app starts or refreshes ---
@@ -317,7 +482,8 @@ if 'initial_appointments_loaded' not in st.session_state:
     st.session_state.initial_appointments_loaded = True
 
 with col1:
-    st.subheader("Agregar turno")
+    st.markdown('<div class="form-container">', unsafe_allow_html=True)
+    st.subheader("Agendar nuevo turno")
 
     if not dni_psicologo:
         st.error("Error: No se pudo obtener el DNI del psicólogo logueado")
@@ -331,7 +497,7 @@ with col1:
         mapeo_nombres = {"Error al cargar pacientes": ""}
 
     paciente_seleccionado = st.selectbox(
-        "Nombre del paciente:",
+        "**Paciente:**",
         nombres_pacientes,
         key="paciente_select"
     )
@@ -339,10 +505,10 @@ with col1:
     dni_paciente_seleccionado = mapeo_nombres.get(paciente_seleccionado, "")
 
     if dni_paciente_seleccionado and paciente_seleccionado not in ["Seleccionar paciente...", "No hay pacientes asignados", "Error al cargar pacientes"]:
-        st.info(f"📋 Paciente: {paciente_seleccionado} | DNI: {dni_paciente_seleccionado}")
+        st.info(f"📋 Paciente: **{paciente_seleccionado}** | DNI: `{dni_paciente_seleccionado}`")
 
     fecha_turno = st.date_input(
-        "Fecha:",
+        "**Fecha del turno:**",
         value=datetime.date.today(),
         min_value=datetime.date.today(),
         key="fecha_input"
@@ -357,12 +523,14 @@ with col1:
     ]
 
     horario_seleccionado = st.selectbox(
-        "Horario:",
+        "**Horario del turno:**",
         horarios_disponibles,
         key="horario_select"
     )
 
-    if st.button("AGREGAR", type="primary", use_container_width=True):
+    st.markdown("---") # Separador visual
+
+    if st.button("➕ AGREGAR TURNO", type="primary", use_container_width=True):
         if (dni_paciente_seleccionado and
             paciente_seleccionado not in ["Seleccionar paciente...", "No hay pacientes asignados", "Error al cargar pacientes"] and
             horario_seleccionado != "Seleccionar horario..."):
@@ -374,42 +542,43 @@ with col1:
                 'fecha': fecha_turno,
                 'horario': horario_seleccionado,
                 'datetime': datetime.datetime.combine(fecha_turno,
-                                datetime.time.fromisoformat(horario_seleccionado + ":00"))
+                                                      datetime.time.fromisoformat(horario_seleccionado + ":00"))
             }
 
             if guardar_turno_en_bd(nuevo_turno):
                 st.session_state.turnos.append(nuevo_turno)
-                st.success(f"✅ Turno agregado para {paciente_seleccionado}")
+                st.success(f"✅ Turno agregado para **{paciente_seleccionado}** el {fecha_turno.strftime('%d/%m/%Y')} a las {horario_seleccionado}.")
             else:
-                st.error(f"❌ No se pudo agregar el turno para {paciente_seleccionado} en la base de datos.")
+                st.error(f"❌ No se pudo agregar el turno para {paciente_seleccionado} en la base de datos. Por favor, intente de nuevo.")
 
             st.rerun() # Rerun to refresh calendar and list
         else:
             if not dni_paciente_seleccionado or paciente_seleccionado in ["Seleccionar paciente...", "No hay pacientes asignados", "Error al cargar pacientes"]:
-                st.error("❌ Por favor seleccione un paciente válido.")
+                st.error("❌ Por favor, seleccione un **paciente** válido.")
             elif horario_seleccionado == "Seleccionar horario...":
-                st.error("❌ Por favor seleccione un horario.")
+                st.error("❌ Por favor, seleccione un **horario** para el turno.")
             else:
-                st.error("❌ Por favor complete todos los campos.")
+                st.error("❌ Por favor, complete todos los campos requeridos para el turno.")
+    st.markdown('</div>', unsafe_allow_html=True) # Cierra el form-container
 
+    # --- Próximo Turno ---
     if st.session_state.turnos:
         turnos_futuros = [t for t in st.session_state.turnos if t['datetime'] >= datetime.datetime.now()]
         if turnos_futuros:
             proximo_turno = min(turnos_futuros, key=lambda x: x['datetime'])
 
             st.markdown('<div class="next-appointment">', unsafe_allow_html=True)
-            st.subheader("Próximo turno")
+            st.subheader("Tu próximo turno")
             dias_restantes = (proximo_turno['datetime'].date() - datetime.date.today()).days
+            
             st.markdown(f"""
-            <div style="display: flex; align-items: center; gap: 1rem;">
-                <div style="background-color: #1976d2; color: white; border-radius: 50%;
-                            width: 3rem; height: 3rem; display: flex; align-items: center;
-                            justify-content: center; font-weight: bold; font-size: 1.2rem;">
+            <div style="display: flex; align-items: center; font-weight: bold; color: #3f51b5; padding-bottom: 0.5rem; gap: 1rem;">
+                <div class="day-circle">
                     {dias_restantes if dias_restantes >= 0 else 0}
                 </div>
-                <div>
-                    <strong>{proximo_turno['horario']} {proximo_turno['paciente']}</strong><br>
-                    <small>{proximo_turno['fecha'].strftime('%d/%m/%Y')}</small>
+                <div class="details">
+                    <strong>{proximo_turno['horario']} - {proximo_turno['paciente']}</strong><br>
+                    <small>{proximo_turno['fecha'].strftime('%d/%m/%Y')} (en {dias_restantes} {'día' if dias_restantes == 1 else 'días'})</small>
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -417,6 +586,7 @@ with col1:
 
 with col2:
     st.markdown('<div class="calendar-container">', unsafe_allow_html=True)
+    st.subheader("🗓️ Vista mensual de turnos")
 
     col_prev, col_month, col_next = st.columns([1, 3, 1])
 
@@ -426,80 +596,84 @@ with col2:
         st.session_state.current_year = datetime.date.today().year
 
     with col_prev:
-        if st.button("◀", key="prev_month"):
+        st.markdown("<div style='display: flex; justify-content: flex-start; align-items: center; height: 100%;'>", unsafe_allow_html=True)
+        if st.button("◀ Mes anterior", key="prev_month"):
             if st.session_state.current_month == 1:
                 st.session_state.current_month = 12
                 st.session_state.current_year -= 1
             else:
                 st.session_state.current_month -= 1
             st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
 
     with col_month:
         meses = ['', 'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
                  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
-        st.markdown(f"<h3 style='text-align: center;'>{meses[st.session_state.current_month]} {st.session_state.current_year}</h3>",
+        st.markdown(f"<h3 style='text-align: center; color: #1a237e;'>{meses[st.session_state.current_month]} {st.session_state.current_year}</h3>",
                     unsafe_allow_html=True)
 
     with col_next:
-        if st.button("▶", key="next_month"):
+        st.markdown("<div style='display: flex; justify-content: flex-end; align-items: center; height: 100%;'>", unsafe_allow_html=True)
+        if st.button("Siguiente mes ▶", key="next_month"):
             if st.session_state.current_month == 12:
                 st.session_state.current_month = 1
                 st.session_state.current_year += 1
             else:
                 st.session_state.current_month += 1
             st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("---") # Separador visual
 
     cal = calendar.monthcalendar(st.session_state.current_year, st.session_state.current_month)
 
     dias_semana = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom']
 
     cols_header = st.columns(7)
-    for i, dia in enumerate(dias_semana):
+    for i, dia_nombre in enumerate(dias_semana):
         with cols_header[i]:
-            st.markdown(f"<div style='text-align: center; font-weight: bold; color: #666;'>{dia}</div>",
+            st.markdown(f"<div style='text-align: center; font-weight: bold; color: #3f51b5; padding-bottom: 0.5rem;'>{dia_nombre}</div>",
                         unsafe_allow_html=True)
-
     for semana in cal:
         cols_week = st.columns(7)
         for i, dia in enumerate(semana):
             with cols_week[i]:
                 if dia == 0:
-                    st.markdown("<div style='height: 80px;'></div>", unsafe_allow_html=True)
+                    st.markdown("<div style='height: 90px;'></div>", unsafe_allow_html=True) # Espacio para días fuera del mes
                 else:
                     fecha_dia = datetime.date(st.session_state.current_year, st.session_state.current_month, dia)
-                    # Use st.session_state.turnos (which now includes DB data)
                     turnos_dia = sorted([t for t in st.session_state.turnos if t['fecha'] == fecha_dia], key=lambda x: x['datetime'])
 
-                    bg_color = "#fff"
+                    day_class = "day-cell"
                     if fecha_dia == datetime.date.today():
-                        bg_color = "#e3f2fd"
+                        day_class += " today"
 
-                    day_content = f"<div style='background-color: {bg_color}; padding: 0.5rem; border-radius: 5px; min-height: 80px; border: 1px solid #eee;'>"
-                    day_content += f"<div style='font-weight: bold; text-align: center;'>{dia}</div>"
+                    day_content = f"<div class='{day_class}'>"
+                    day_content += f"<div class='day-number'>{dia}</div>"
 
-                    for turno in turnos_dia[:2]:
-                        color_turno = "#1976d2"
-                        day_content += f"<div style='background-color: {color_turno}; color: white; font-size: 0.7rem; padding: 2px 4px; margin: 2px 0; border-radius: 3px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;'>{turno['horario']} - {turno['paciente']}</div>"
+                    for turno in turnos_dia[:2]: # Mostrar hasta 2 turnos directamente
+                        day_content += f"<div class='appointment-bubble'>{turno['horario']} {turno['paciente']}</div>"
 
                     if len(turnos_dia) > 2:
-                        day_content += f"<div style='font-size: 0.6rem; text-align: center; color: #666;'>+{len(turnos_dia)-2} más</div>"
+                        day_content += f"<div class='more-appointments'>+{len(turnos_dia)-2} más</div>"
 
                     day_content += "</div>"
                     st.markdown(day_content, unsafe_allow_html=True)
 
-    st.markdown('</div>', unsafe_allow_html=True)
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True) # Cierra el calendar-container
 
-
+# --- Lista de Próximos Turnos (debajo del calendario en la columna 2) ---
 if st.session_state.turnos:
-    st.subheader("Lista de Próximos Turnos")
+    st.markdown("---") # Separador
+    st.subheader("📋 Lista detallada de próximos turnos")
 
     turnos_ordenados = sorted(st.session_state.turnos, key=lambda x: x['datetime'])
 
+    # Mostrar turnos desde hace 1 hora (para incluir los que acaban de pasar)
     turnos_visibles = [t for t in turnos_ordenados if t['datetime'] >= datetime.datetime.now() - timedelta(hours=1)]
 
     if not turnos_visibles:
-        st.info("No hay turnos próximos.")
+        st.info("🎉 ¡No hay turnos próximos agendados! Disfruta de tu tiempo libre o agrega uno nuevo.")
     else:
         for i, turno in enumerate(turnos_visibles):
             col_turno, col_delete = st.columns([4, 1])
@@ -507,13 +681,16 @@ if st.session_state.turnos:
             with col_turno:
                 st.markdown(f"""
                 <div class="turno-card">
-                    <strong>{turno['paciente']}</strong><br>
-                    📅 {turno['fecha'].strftime('%d/%m/%Y')} - 🕐 {turno['horario']}
+                    <div>
+                        <strong>{turno['paciente']}</strong><br>
+                        <span>📅 {turno['fecha'].strftime('%d/%m/%Y')} - 🕐 {turno['horario']}</span>
+                    </div>
                 </div>
                 """, unsafe_allow_html=True)
 
             with col_delete:
-                if st.button("🗑️", key=f"delete_{i}", help="Eliminar turno"):
+                st.markdown("<div style='display: flex; justify-content: flex-end; align-items: center; height: 100%;'>", unsafe_allow_html=True)
+                if st.button("🗑️ Eliminar", key=f"delete_{i}", help="Eliminar turno", use_container_width=True):
                     try:
                         query_delete = f"""
                         DELETE FROM turnos
@@ -524,9 +701,10 @@ if st.session_state.turnos:
                         """
                         if execute_query(query_delete, conn=None, is_select=False):
                             st.session_state.turnos.remove(turno)
-                            st.success("Turno eliminado correctamente.")
+                            st.success("🗑️ Turno eliminado correctamente.")
                         else:
-                            st.error("Error al eliminar el turno de la base de datos.")
+                            st.error("❌ Error al eliminar el turno de la base de datos.")
                     except Exception as e:
-                        st.error(f"Error inesperado al intentar eliminar el turno: {e}")
+                        st.error(f"❌ Error inesperado al intentar eliminar el turno: {e}")
                     st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
