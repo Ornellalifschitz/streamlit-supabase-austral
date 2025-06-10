@@ -4,6 +4,9 @@ import psycopg2
 import os
 from dotenv import load_dotenv
 import pandas as pd
+import streamlit as st
+from datetime import date
+from dateutil.parser import parse
 
 # Load environment variables from .env file 
 load_dotenv()
@@ -114,3 +117,72 @@ def add_employee(nombre, dni, telefono, fecha_contratacion, salario):
 #usuarios = query de usuarios
 #if usuario in usuarios
 
+def guardar_sesion_en_bd(sesion_data):
+    """
+    Guarda una nueva sesión. Expects all necessary data (id_turno, dni_paciente, id_fichamedica, etc.)
+    to be present and non-None in sesion_data.
+    """
+    try:
+        print(f"DEBUG - Intentando guardar sesión: {sesion_data}")
+        
+        # Validate that required fields are present and NOT NULL
+        campos_requeridos = ['id_turno', 'dni_paciente', 'id_fichamedica', 'asistencia', 
+                           'notas_de_la_sesion', 'temas_principales_desarrollados', 'estado']
+        
+        for campo in campos_requeridos:
+            if campo not in sesion_data or sesion_data[campo] is None:
+                print(f"ERROR - Campo requerido faltante o nulo: {campo}")
+                st.error(f"❌ Campo '{campo}' requerido faltante o nulo.")
+                return False
+        
+        # Escapar caracteres especiales en los campos de texto
+        def escape_sql_string(texto):
+            if texto is None: # Should not happen if validation above passes for text fields
+                return ''
+            return str(texto).replace("'", "''").replace("\\", "\\\\")
+        
+        # id_fichamedica_sql will now always have a valid value (not NULL)
+        id_fichamedica_sql = f"'{sesion_data['id_fichamedica']}'" 
+
+        query = f"""
+        INSERT INTO sesiones (
+            id_turno,
+            dni_paciente,
+            id_fichamedica,  -- Correct column name in 'sesiones'
+            notas_de_la_sesion,
+            temas_principales_desarrollados,
+            estado,
+            asistencia
+        )
+        VALUES (
+            '{sesion_data['id_turno']}',
+            '{sesion_data['dni_paciente']}',
+            {id_fichamedica_sql},
+            '{escape_sql_string(sesion_data['notas_de_la_sesion'])}',
+            '{escape_sql_string(sesion_data['temas_principales_desarrollados'])}',
+            '{sesion_data['estado']}',
+            '{sesion_data['asistencia']}'
+        )
+        """
+        
+        print(f"DEBUG - Query a ejecutar: {query}")
+        
+        resultado = execute_query(query, is_select=False)
+        
+        print(f"DEBUG - Resultado execute_query: {resultado}")
+        
+        if resultado:
+            print("✅ Sesión guardada exitosamente")
+            return True
+        else:
+            print("❌ Error al guardar la sesión - execute_query retornó False/None")
+            return False
+            
+    except Exception as e:
+        print(f"EXCEPTION en guardar_sesion_en_bd: {e}")
+        st.error("❌ No se pudo guardar la sesión. Error detallado:")
+        st.error(f"Tipo de error: {type(e).__name__}")
+        st.error(f"Mensaje: {str(e)}")
+        # st.exception(e) # This will print the full traceback in Streamlit
+        return False
+    
