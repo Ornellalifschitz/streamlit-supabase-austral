@@ -462,17 +462,161 @@ def cerrar_sesion():
 # === INTERFAZ DE USUARIO CORREGIDA ===
 def main():
     st.set_page_config(
-        page_title="Sistema de Autenticación",
+        page_title="Bienvenido a Mindlink",
         page_icon="🔐",
-        layout="centered",
+        layout="wide",
         initial_sidebar_state="collapsed"
     )
     
     # Inicializar estado
     inicializar_session_state()
     
-    st.title("🔐 Sistema de Autenticación")
-    
+    if not st.session_state.show_register and not st.session_state.show_recovery:
+        st.markdown("""
+        <style>
+            /* Ocultar elementos por defecto de Streamlit */
+            #MainMenu {visibility: hidden;}
+            .stDeployButton {display:none;}
+            footer {visibility: hidden;}
+            .stApp > header {visibility: hidden;}
+            
+            /* Fondo dividido */
+            .stApp {
+                background: linear-gradient(to right, #fbfaf9 50%, #e2e2e2 50%) !important;
+                height: 100vh;
+                overflow: hidden;
+            }
+            /* Container principal sin padding */
+            .main .block-container {
+                padding: 0 !important;
+                max-width: 100% !important;
+                height: 100vh !important;
+                display: flex !important;
+                margin: 0 !important;
+            }
+            /* COLUMNA IZQUIERDA - Logo centrado absoluto */
+        [data-testid="column"]:first-child {
+            height: 100vh !important;
+            width: 50% !important;
+            position: relative !important;
+        }
+        
+        [data-testid="column"]:first-child > div {
+            position: absolute !important;
+            top: 60% !important; /* Ajustado a 60% para bajar más el logo */
+            left: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            width: auto !important;
+            height: auto !important;
+        }
+        
+        /* COLUMNA DERECHA - Formulario centrado absoluto */
+        [data-testid="column"]:last-child {
+            height: 100vh !important;
+            width: 50% !important;
+            position: relative !important;
+        }
+        
+        [data-testid="column"]:last-child > div {
+            position: absolute !important;
+            top: 50% !important;
+            left: 50% !important;
+            transform: translate(-50%, -50%) !important;
+            width: 400px !important;
+            max-width: 90% !important;
+        }
+        
+        /* Inputs del formulario */
+        .stTextInput > div > div > input {
+            background-color: white !important;
+            border: none !important;
+            border-radius: 25px !important;
+            padding: 15px 20px !important;
+            font-size: 16px !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+            margin-bottom: 1rem !important;
+            width: 100% !important;
+        }
+        
+        .stTextInput > div > div > input::placeholder {
+            color: #999 !important;
+        }
+        
+        .stTextInput > label {
+            display: none !important;
+        }
+        
+        /* Botón de login */
+        .stButton > button {
+            background-color: #c44536 !important;
+            color: white !important;
+            border: none !important;
+            border-radius: 25px !important;
+            padding: 12px 40px !important;
+            font-size: 16px !important;
+            font-weight: bold !important;
+            width: 100% !important;
+            height: 50px !important;
+            transition: all 0.3s ease !important;
+            margin: 1rem 0 !important;
+        }
+        
+        .stButton > button:hover {
+            background-color: #a63429 !important;
+            transform: translateY(-2px) !important;
+            box-shadow: 0 4px 12px rgba(196, 69, 54, 0.3) !important;
+        }
+        
+        /* Formulario */
+        .stForm {
+            background: transparent !important;
+            border: none !important;
+            width: 100% !important;
+        }
+        
+        /* Headers */
+        .stApp h1, .stApp h2, .stApp h3 {
+            color: #2c3e50 !important;
+            text-align: center !important;
+            margin-bottom: 0.2rem !important; /* Reducido de 0.5rem a 0.2rem */
+        }
+        
+        /* Mensajes */
+        .stSuccess, .stError, .stInfo {
+            margin: 1rem 0 !important;
+            text-align: center !important;
+        }
+        
+        /* Responsive */
+        @media (max-width: 768px) {
+            .stApp {
+                background: #e2e2e2 !important;
+            }
+            
+            .main .block-container {
+                flex-direction: column !important;
+            }
+            
+            [data-testid="column"] {
+                width: 100% !important;
+                height: 50vh !important;
+            }
+            
+            [data-testid="column"] > div {
+                position: relative !important;
+                transform: none !important;
+                top: auto !important;
+                left: auto !important;
+                width: 100% !important;
+                display: flex !important;
+                align-items: center !important;
+                justify-content: center !important;
+                height: 100% !important;
+            }
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
     # Si el usuario ya está logueado, lo redirigimos a la agenda
     if st.session_state.logged_in:
         st.switch_page("pages/agenda_turnos.py")
@@ -488,68 +632,80 @@ def main():
 
 def mostrar_formulario_login():
     """Formulario principal de login - CORREGIDO"""
-    st.markdown("### 📱 Iniciar Sesión")
+    
     
     # Botones de navegación CON CALLBACKS
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("📝 ¿No tienes cuenta? Regístrate", 
-                     use_container_width=True, 
-                     key="btn_ir_registro",
-                     on_click=ir_a_registro):
-            pass  # La función callback ya maneja la navegación
-    
+        try:
+            st.image("ChatGPT Image 23 abr 2025, 09_29_26 a.m..png", width=300)
+        except:
+            st.markdown("""
+            <div style="width: 300px; height: 300px; background-color: #2c3e50; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center; margin: 0 auto;">
+            <span style="color: white; font-size: 72px;">🧠</span>
+            </div>
+            """, unsafe_allow_html=True)
+
     with col2:
-        if st.button("🔄 ¿Olvidaste tu contraseña?", 
-                     use_container_width=True, 
-                     key="btn_ir_recuperacion",
-                     on_click=ir_a_recuperacion):
-            pass  # La función callback ya maneja la navegación
+        st.title("Bienvenido a Mindlink")
+        
+        # Formulario de login
+        with st.form("login_form"):
+            dni = st.text_input("DNI (8 dígitos)", placeholder="12345678", max_chars=8)
+            password = st.text_input("Contraseña", type="password")
+            submit = st.form_submit_button(" Iniciar Sesión", use_container_width=True)
+            
+            if submit:
+                if not dni or not password:
+                    st.error("⚠️ Por favor complete todos los campos")
+                    return
+                
+                with st.spinner("Verificando credenciales..."):
+                    # Usar función de autenticación
+                    resultado = login_usuario(dni, password)
+                    
+                    if resultado['action'] == 'login_success':
+                        # Login exitoso
+                        st.success(resultado['message'])
+                        st.session_state.logged_in = True
+                        st.session_state.user_data = resultado['user_data']
+                        time.sleep(1) # Pequeña pausa para que el usuario lea el mensaje
+                        st.switch_page("pages/agenda_turnos.py") # Redirección
+                        
+                    elif resultado['action'] == 'register':
+                        # Usuario no registrado
+                        st.warning(resultado['message'])
+                        st.info("👆 Usa el botón 'Regístrate' para crear una cuenta")
+                        
+                    elif resultado['action'] == 'verify_email':
+                        # Contraseña incorrecta - guardar DNI para recuperación
+                        st.error(resultado['message'])
+                        st.info("👆 Usa el botón 'Olvidaste tu contraseña' para recuperarla")
+                        st.session_state.recovery_dni = dni
+                        
+                    else:
+                        # Error general
+                        st.error(resultado['message'])
+
+        # Solo en la columna 2 ponemos los botones
+        if st.button("¿No tienes cuenta? Regístrate",
+                use_container_width=True,
+                key="btn_ir_registro",
+                on_click=ir_a_registro):
+            pass # La función callback ya maneja la navegación
+    
+        if st.button("¿Olvidaste tu contraseña?",
+                use_container_width=True,
+                key="btn_ir_recuperacion",
+                on_click=ir_a_recuperacion):
+            pass # La función callback ya maneja la navegación
+    
     
     st.markdown("---")
-    
-    # Formulario de login
-    with st.form("login_form"):
-        dni = st.text_input("DNI (8 dígitos)", placeholder="12345678", max_chars=8)
-        password = st.text_input("Contraseña", type="password")
-        submit = st.form_submit_button("🚀 Iniciar Sesión", use_container_width=True)
-        
-        if submit:
-            if not dni or not password:
-                st.error("⚠️ Por favor complete todos los campos")
-                return
-            
-            with st.spinner("Verificando credenciales..."):
-                # Usar función de autenticación
-                resultado = login_usuario(dni, password)
-                
-                if resultado['action'] == 'login_success':
-                    # Login exitoso
-                    st.success(resultado['message'])
-                    st.session_state.logged_in = True
-                    st.session_state.user_data = resultado['user_data']
-                    time.sleep(1) # Pequeña pausa para que el usuario lea el mensaje
-                    st.switch_page("pages/agenda_turnos.py") # Redirección
-                    
-                elif resultado['action'] == 'register':
-                    # Usuario no registrado
-                    st.warning(resultado['message'])
-                    st.info("👆 Usa el botón 'Regístrate' para crear una cuenta")
-                    
-                elif resultado['action'] == 'verify_email':
-                    # Contraseña incorrecta - guardar DNI para recuperación
-                    st.error(resultado['message'])
-                    st.info("👆 Usa el botón 'Olvidaste tu contraseña' para recuperarla")
-                    st.session_state.recovery_dni = dni
-                    
-                else:
-                    # Error general
-                    st.error(resultado['message'])
-
-
 def mostrar_formulario_registro():
     """Formulario de registro de nuevo usuario - CORREGIDO"""
-    st.markdown("### 📝 Registro de Usuario")
+    st.title(" 📝 Registro de Usuario")
     st.info("Complete todos los campos para crear su cuenta")
     
     # Botón para volver al login CON CALLBACK
