@@ -9,8 +9,6 @@ from datetime import datetime, date
 load_dotenv()
 
 # ============= AUTHENTICATION CHECK AND DNI RETRIEVAL =============
-
-# This must be at the BEGINNING of the protected page script
 if 'logged_in' not in st.session_state or not st.session_state.logged_in:
     st.warning("⚠️ Debes iniciar sesión para acceder a esta página.")
     if st.button("Ir a la página de inicio de sesión"):
@@ -252,7 +250,7 @@ st.markdown("""
 <style>
     /* Color variables */
     :root {
-        --primary-dark: #001d4a;
+        --primary-dark: #222E50;
         --primary-medium: #508ca4;
         --primary-light: #e2e2e2;
         --background-accent: #c2bdb6;
@@ -268,7 +266,7 @@ st.markdown("""
     .title-container {
         background-color: #c2bdb6;
         padding: 1.5rem;
-        border-radius: 10px;
+        border-radius: 9px;
         margin-bottom: 2rem;
         text-align: center;
         box-shadow: 0 4px 6px rgba(0, 29, 74, 0.1);
@@ -277,7 +275,7 @@ st.markdown("""
     .title-text {
         color: #001d4a;
         font-size: 2.5rem;
-        font-weight: bold;
+        font-weight: normal;
         margin: 0;
         text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
     }
@@ -321,7 +319,7 @@ st.markdown("""
     .stTextArea > div > div > textarea:focus,
     .stSelectbox > div > div > select:focus,
     .stDateInput > div > div > input:focus {
-        border-color: #001d4a !important;
+        border-color: #222E50 !important;
         box-shadow: 0 0 0 2px rgba(0, 29, 74, 0.2) !important;
     }
     
@@ -330,7 +328,7 @@ st.markdown("""
     .stTextArea > label,
     .stSelectbox > label,
     .stDateInput > label {
-        color: #001d4a !important;
+        color: #222E50 !important;
         font-weight: bold !important;
     }
     
@@ -443,19 +441,35 @@ def load_pacientes_data_by_psicologo(dni_psicologo):
 # Main title with custom background
 st.markdown("""
 <div class="title-container">
-    <h1 class="title-text">👥 Pacientes</h1>
+    <h1 class="title-text"> PACIENTES</h1>
 </div>
 """, unsafe_allow_html=True)
 
-# Display authenticated psychologist information
+# Display authenticated psychologist information and buttons
 # This block will always execute if the user is logged in due to the initial check
 if st.session_state.authenticated_psicologo:
-    st.success(f"🔓 Sesión iniciada como psicólogo DNI: {st.session_state.authenticated_psicologo}")
+    # Con esta versión personalizada:
+    st.markdown(f"""
+    <div style="
+        background-color: #B9D7E0; 
+        color: white; 
+        padding: 1rem; 
+        border-radius: 7px; 
+        border: 2px solid #B9D7E0; 
+        margin-bottom: 1rem;
+        text-align: left;
+        font-weight: normal;
+        box-shadow: 0 2px 4px rgba(0, 29, 74, 0.2);
+    ">
+        🔓 Sesión iniciada como psicólogo DNI: {st.session_state.authenticated_psicologo}
+    </div>
+    """, unsafe_allow_html=True)
     
-    # Button to close session
-    col1, col2 = st.columns([1, 4])
+    # Buttons in the same row with separation
+    col1, col2, col3 = st.columns([2, 1, 2])  # [ancho_izquierda, separación, ancho_derecha]
+    
     with col1:
-        if st.button("🚪 Cerrar Sesión", type="secondary"):
+        if st.button("🚪 Cerrar Sesión", type="secondary", use_container_width=True):
             st.session_state.logged_in = False # Set logged_in to False
             st.session_state.authenticated_psicologo = None
             st.session_state.show_patient_form = False
@@ -467,20 +481,13 @@ if st.session_state.authenticated_psicologo:
                 del st.session_state.psicologo_dni 
             st.cache_data.clear()
             st.switch_page("Inicio.py") # Redirect to login page
-            # st.rerun() # Use rerun if you want to stay on the same page and clear it.
-                          # But switch_page is better for a complete logout.
-
-# Button for new patient
-col1, col2 = st.columns([1, 4])
-with col1:
-    if st.button("➕ Registrar nuevo paciente", type="primary", use_container_width=True):
-        # The psychologist is already authenticated at this point due to the initial checks
-        st.session_state.show_patient_form = True
-
-# The in-page authentication form has been removed
-# if st.session_state.get('show_auth_form', False) and not st.session_state.authenticated_psicologo:
-#    ... (Removed code for authentication form) ...
-
+    
+    # col2 stays empty for separation
+    
+    with col3:
+        if st.button("➕ Registrar nuevo paciente", type="primary", use_container_width=True):
+            # The psychologist is already authenticated at this point due to the initial checks
+            st.session_state.show_patient_form = True
 
 # Show patient form if psychologist is authenticated and the button was pressed
 if st.session_state.get('show_patient_form', False) and st.session_state.authenticated_psicologo:
@@ -702,6 +709,6 @@ else:
 st.markdown("---")
 st.markdown("""
 <div style="text-align: center; color: #001d4a; font-style: italic; padding: 1rem;">
-    Sistema de Registro de Pacientes - Conectado a Supabase
+   MindLink derechos reservados 
 </div>
 """, unsafe_allow_html=True)
