@@ -719,7 +719,7 @@ with st.sidebar:
     col1, col2, col3 = st.columns([1, 2, 1]) # Adjust ratios for desired centering
     with col2:
         st.markdown("<br><br><br>", unsafe_allow_html=True)
-        st.image("C:/Users/mpiam/OneDrive/Documents/GitHub/streamlit-supabase-austral/image-removebg-preview.png", width = 200) # Optional: Add your logo
+        st.image("image-removebg-preview.png", width = 200) # Optional: Add your logo
     #st.markdown("---")
 
 
