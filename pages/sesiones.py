@@ -141,9 +141,9 @@ def cargar_turnos_pendientes(dni_psicologo):
 st.set_page_config(page_title="Sistema de Sesiones", page_icon="📅", layout="wide")
 st.markdown("""
 <style>
-    :root {--primary-dark: #001d4a; --primary-medium: #508ca4; --primary-light: #e2e2e2; --background-accent: #c2bdb6;}
+    :root {--primary-dark: #001d4a; --primary-medium: #068D9D; --primary-light: #B9D7E0; --background-accent: #c2bdb6;}
     .main .block-container {background-color: var(--primary-light); padding: 2rem 1rem;}
-    .title-container {background-color: #c2bdb6; padding: 1.5rem; border-radius: 10px; margin-bottom: 2rem; text-align: center; box-shadow: 0 4px 6px rgba(0, 29, 74, 0.1);}
+    .title-container {background-color: #c2bdb6; padding: 1.5rem; border-radius: 9px; margin-bottom: 2rem; text-align: center; box-shadow: 0 4px 6px rgba(0, 29, 74, 0.1);}
     .title-text {color: #001d4a; font-size: 2.5rem; font-weight: bold; margin: 0; text-shadow: 1px 1px 2px rgba(0,0,0,0.1);}
     .stButton > button {background-color: var(--primary-dark) !important; color: white !important; border: none !important; border-radius: 8px !important; font-weight: bold !important; transition: all 0.3s ease !important;}
     .stButton > button:hover {background-color: var(--primary-medium) !important; transform: translateY(-2px) !important; box-shadow: 0 4px 8px rgba(0, 29, 74, 0.3) !important;}
@@ -154,7 +154,7 @@ st.markdown("""
     div[data-testid="metric-container"] {background-color: white; border: 2px solid var(--primary-medium); border-radius: 8px; padding: 1rem; box-shadow: 0 2px 4px rgba(80, 140, 164, 0.1);}
     h3 {color: var(--primary-dark) !important; border-bottom: 2px solid var(--primary-medium); padding-bottom: 0.5rem;}
     hr {border-color: var(--primary-medium) !important; border-width: 2px !important;}
-    .proximo-turno-card {background-color: white; border: 2px solid var(--primary-medium); border-radius: 10px; padding: 1.5rem; margin: 1rem 0; box-shadow: 0 4px 6px rgba(80, 140, 164, 0.2);}
+    .proximo-turno-card {background-color: var(--primary-light) ; border: 2px solid var(--primary-medium); border-radius: 10px; padding: 1.5rem; margin: 1rem 0; box-shadow: 0 4px 6px rgba(80, 140, 164, 0.2);}
     .proximo-turno-title {color: var(--primary-dark); font-size: 1.2rem; font-weight: bold; margin-bottom: 1rem; text-align: center;}
     .turno-info {color: var(--primary-dark); font-size: 1rem; margin: 0.5rem 0;}
     .turno-paciente {color: var(--primary-medium); font-weight: bold; font-size: 1.1rem;}
@@ -191,7 +191,7 @@ cargar_datos_en_sesion(dni_psicologo_logueado)
 
 # --- INTERFAZ DE USUARIO ---
 
-st.markdown('<div class="title-container"><h1 class="title-text">📅 Sesiones</h1></div>', unsafe_allow_html=True)
+st.markdown('<div class="title-container"><h1 class="title-text"> SESIONES </h1></div>', unsafe_allow_html=True)
 
 col_btn, col_welcome = st.columns([1, 2])
 with col_btn:
@@ -383,4 +383,4 @@ else:
     st.info("No hay próximos turnos registrados.")
 
 st.markdown("---")
-st.markdown('<div style="text-align: center; color: var(--primary-dark); font-style: italic; padding: 1rem;">Sistema de Sesiones - Desarrollado con Streamlit</div>', unsafe_allow_html=True)
+st.markdown('<div style="text-align: center; color: var(--primary-dark); font-style: italic; padding: 1rem;"> Mindlink marca registrada </div>', unsafe_allow_html=True)
