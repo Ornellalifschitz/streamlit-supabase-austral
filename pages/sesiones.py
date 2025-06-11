@@ -189,6 +189,27 @@ def forzar_recarga_datos():
 cargar_datos_en_sesion(dni_psicologo_logueado)
 
 
+# --- SIDEBAR ---
+with st.sidebar:
+    st.markdown("## Perfil del Psicólogo")
+    st.write(f"**Nombre:** {st.session_state.user_data.get('nombre', 'N/A')}")
+    st.write(f"**DNI:** {st.session_state.user_data.get('dni', 'N/A')}")
+    st.write(f"**Email:** {st.session_state.user_data.get('mail', 'N/A')}")
+
+    #st.markdown("---")
+    col1, col2, col3 = st.columns([1, 2, 1]) # Adjust ratios for desired centering
+    with col2:
+        st.markdown("<br><br><br>", unsafe_allow_html=True)
+        #st.markdown("<br><br><br>", unsafe_allow_html=True)
+        st.image("C:/Users/mpiam/OneDrive/Documents/GitHub/streamlit-supabase-austral/image-removebg-preview.png", width = 200) # Optional: Add your logo
+    #st.markdown("---")
+
+
+
+    if st.button("🚪 Cerrar Sesión", use_container_width=True, help="Cerrar sesión y volver a la página de inicio"):
+        cerrar_sesion()
+
+
 # --- INTERFAZ DE USUARIO ---
 
 st.markdown('<div class="title-container"><h1 class="title-text"> SESIONES </h1></div>', unsafe_allow_html=True)
