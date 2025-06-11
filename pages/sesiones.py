@@ -215,9 +215,9 @@ col_btn, col_welcome = st.columns([1, 2])
 with col_btn:
     if st.button("➕ Iniciar nueva sesión", type="primary", use_container_width=True):
         st.session_state.show_form = not st.session_state.get('show_form', False)
-with col_welcome:
-    st.markdown(f"### 👋 ¡Hola, {st.session_state.user_data.get('nombre', 'Profesional')}!")
-    st.caption(f"DNI: {st.session_state.user_data.get('dni')} | Email: {st.session_state.user_data.get('mail')}")
+#with col_welcome:
+#    st.markdown(f"### 👋 ¡Hola, {st.session_state.user_data.get('nombre', 'Profesional')}!")
+#    st.caption(f"DNI: {st.session_state.user_data.get('dni')} | Email: {st.session_state.user_data.get('mail')}")
 
 #st.markdown("---")
 
