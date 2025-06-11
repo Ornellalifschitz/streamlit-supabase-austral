@@ -770,16 +770,3 @@ with col3:
     else:
         st.info("No hay diagnósticos registrados para mostrar.")
 
-# Optional: Add a summary row below the charts
-st.markdown("---")
-st.markdown("#### Resumen General")
-col1, col2, col3, col4 = st.columns(4)
-with col1:
-    st.metric("Total Fichas", len(df_fichas))
-with col2:
-    st.metric("Con Antecedentes", f"{with_antecedentes} ({with_antecedentes/len(df_fichas)*100:.1f}%)")
-with col3:
-    st.metric("Con Medicación", f"{with_medicacion} ({with_medicacion/len(df_fichas)*100:.1f}%)")
-with col4:
-    with_diagnostico = len(df_fichas[df_fichas['diagnostico_general'].str.strip() != ''])
-    st.metric("Con Diagnóstico", f"{with_diagnostico} ({with_diagnostico/len(df_fichas)*100:.1f}%)")
