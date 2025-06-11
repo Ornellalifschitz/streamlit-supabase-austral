@@ -684,57 +684,95 @@ with col2:
     )
     
     st.plotly_chart(fig_medicacion, use_container_width=True)
-
-# 3. Diagnosis Pie Chart
+# 3. Diagnosis Histogram
 with col3:
     st.markdown("#### Diagnósticos")
-    
-    # Count patients with and without diagnosis
-    with_diagnostico = len(df_fichas[df_fichas['diagnostico_general'].str.strip() != ''])
-    without_diagnostico = len(df_fichas[df_fichas['diagnostico_general'].str.strip() == ''])
-    
-    # Create pie chart data
-    diagnostico_data = {
-        'Categoría': ['Con Diagnóstico', 'Sin Diagnóstico'],
-        'Cantidad': [with_diagnostico, without_diagnostico]
-    }
-    
-    # Create pie chart with blue-grey color scheme
-    fig_diagnostico = px.pie(
-        values=diagnostico_data['Cantidad'],
-        names=diagnostico_data['Categoría'],
-        color_discrete_sequence=['#4A6FA5', '#D4D4D4'],  # Medium blue and light grey
-        title=""
-    )
-    
-    # Update layout
-    fig_diagnostico.update_traces(
-        textposition='inside', 
-        textinfo='percent+label',
-        textfont_size=12,
-        marker=dict(line=dict(color='#2E4057', width=2))  # Dark blue border
-    )
-    
-    fig_diagnostico.update_layout(
-        showlegend=True,
-        height=300,
-        margin=dict(t=20, b=20, l=20, r=20),
-        font=dict(color='#2E4057', size=11),  # Dark blue text
-        legend=dict(
-            orientation="h",
-            yanchor="bottom",
-            y=-0.2,
-            xanchor="center",
-            x=0.5
+    # Filter out empty diagnoses and count occurrences
+    diagnosticos_validos = df_fichas[df_fichas['diagnostico_general'].str.strip() != '']['diagnostico_general'].str.strip()
+    if len(diagnosticos_validos) > 0:
+        # Count frequency of each diagnosis
+        diagnostico_counts = diagnosticos_validos.value_counts()
+        
+        # Define color palette consistent with your app
+        colores_diagnosticos = [
+            '#4A6FA5',  # Medium blue
+            '#068D9D',  # Dark green
+            '#FF6B6B',  # Coral red
+            '#4ECDC4',  # Turquoise
+            '#45B7D1',  # Light blue
+            '#96CEB4',  # Mint green
+            '#FFEAA7',  # Light yellow
+            '#DDA0DD',  # Plum
+            '#98D8C8',  # Light mint
+            '#F7DC6F',  # Gold
+            '#BB8FCE',  # Light purple
+            '#85C1E9',  # Sky blue
+            '#F8C471',  # Orange
+            '#82E0AA',  # Light green
+            '#F1948A'   # Light coral
+        ]
+        
+        # Assign colors to each diagnosis
+        num_diagnosticos = len(diagnostico_counts)
+        colores_asignados = colores_diagnosticos[:num_diagnosticos]
+        
+        # Create vertical bar chart with individual colors
+        fig_diagnostico = px.bar(
+            x=diagnostico_counts.index.tolist(),
+            y=diagnostico_counts.values.tolist(),
+            color=diagnostico_counts.index.tolist(),
+            color_discrete_sequence=colores_asignados,
+            title=""
         )
-    )
-    
-    st.plotly_chart(fig_diagnostico, use_container_width=True)
+        
+        # Update layout for better aesthetics
+        fig_diagnostico.update_layout(
+            xaxis_title="",
+            yaxis_title="Cantidad",
+            height=400,
+            margin=dict(t=10, b=40, l=40, r=20),
+            font=dict(color='#2E4057', size=12),
+            xaxis=dict(
+                showticklabels=False,  # Hide X axis labels
+                showgrid=False
+            ),
+            yaxis=dict(
+                showgrid=True,
+                gridcolor='rgba(128,128,128,0.2)',
+                tickfont=dict(size=10)
+            ),
+            plot_bgcolor='rgba(0,0,0,0)',
+            paper_bgcolor='rgba(0,0,0,0)',
+            showlegend=False
+        )
+        
+        # Update traces for better appearance
+        fig_diagnostico.update_traces(
+            marker=dict(
+                line=dict(color='#2E4057', width=1),
+                cornerradius=3
+            ),
+            hovertemplate='<b>%{x}</b><br>Cantidad: %{y}<extra></extra>'
+        )
+        
+        st.plotly_chart(fig_diagnostico, use_container_width=True)
+        
+        # Simple color index below
+        st.markdown("**Índice de colores:**")
+        for i, (diagnostico, count) in enumerate(diagnostico_counts.items()):
+            color_hex = colores_asignados[i]
+            st.markdown(
+                f'<span style="color: {color_hex}; font-size: 16px;">●</span> '
+                f'<span style="color: #2E4057; font-size: 14px;">{diagnostico}</span>',
+                unsafe_allow_html=True
+            )
+        
+    else:
+        st.info("No hay diagnósticos registrados para mostrar.")
 
 # Optional: Add a summary row below the charts
 st.markdown("---")
 st.markdown("#### Resumen General")
-
 col1, col2, col3, col4 = st.columns(4)
 with col1:
     st.metric("Total Fichas", len(df_fichas))
@@ -743,4 +781,5 @@ with col2:
 with col3:
     st.metric("Con Medicación", f"{with_medicacion} ({with_medicacion/len(df_fichas)*100:.1f}%)")
 with col4:
+    with_diagnostico = len(df_fichas[df_fichas['diagnostico_general'].str.strip() != ''])
     st.metric("Con Diagnóstico", f"{with_diagnostico} ({with_diagnostico/len(df_fichas)*100:.1f}%)")

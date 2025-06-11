@@ -652,8 +652,8 @@ def mostrar_formulario_login():
         
         # Formulario de login
         with st.form("login_form"):
-            dni = st.text_input("DNI (8 dígitos)", placeholder="12345678", max_chars=8)
-            password = st.text_input("Contraseña", type="password")
+            dni = st.text_input("DNI (8 dígitos)", placeholder="Ingrese DNI", max_chars=8)
+            password = st.text_input("Contraseña", type="password",placeholder="Contraseña")
             submit = st.form_submit_button(" Iniciar Sesión", use_container_width=True)
             
             if submit:
