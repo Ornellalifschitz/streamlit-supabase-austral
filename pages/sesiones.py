@@ -201,7 +201,7 @@ with col_welcome:
     st.markdown(f"### 👋 ¡Hola, {st.session_state.user_data.get('nombre', 'Profesional')}!")
     st.caption(f"DNI: {st.session_state.user_data.get('dni')} | Email: {st.session_state.user_data.get('mail')}")
 
-st.markdown("---")
+#st.markdown("---")
 
 # --- FORMULARIO DE NUEVA SESIÓN ---
 if st.session_state.get('show_form', False):
