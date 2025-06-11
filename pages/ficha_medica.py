@@ -178,9 +178,9 @@ st.markdown("""
 <style>
     /* Color variables */
     :root {
-        --primary-dark: #001d4a;
-        --primary-medium: #508ca4;
-        --primary-light: #e2e2e2;
+        --primary-dark: #222E50;
+        --primary-medium: #068D9D;
+        --primary-light: #B9D7E0;
         --background-accent: #c2bdb6;
     }
     
@@ -194,7 +194,7 @@ st.markdown("""
     .title-container {
         background-color: #c2bdb6;
         padding: 1.5rem;
-        border-radius: 10px;
+        border-radius: 9px;
         margin-bottom: 2rem;
         text-align: center;
         box-shadow: 0 4px 6px rgba(0, 29, 74, 0.1);
@@ -219,7 +219,7 @@ st.markdown("""
     }
     
     .stButton > button:hover {
-        background-color: #508ca4 !important;
+        background-color: #068D9D !important;
         transform: translateY(-2px) !important;
         box-shadow: 0 4px 8px rgba(0, 29, 74, 0.3) !important;
     }
@@ -229,7 +229,7 @@ st.markdown("""
         background-color: white;
         padding: 2rem;
         border-radius: 10px;
-        border: 2px solid #508ca4;
+        border: 2px solid #222E50;
         box-shadow: 0 4px 6px rgba(80, 140, 164, 0.2);
     }
     
@@ -263,7 +263,7 @@ st.markdown("""
     /* Metrics */
     .metric-container > div {
         background-color: white;
-        border: 2px solid #508ca4;
+        border: 2px solid #222E50;
         border-radius: 8px;
         padding: 1rem;
     }
@@ -289,7 +289,7 @@ st.markdown("""
     
     .stSuccess {
         background-color: rgba(80, 140, 164, 0.1);
-        border: 1px solid #508ca4;
+        border: 1px solid #222E50;
         color: #001d4a;
     }
     
@@ -348,31 +348,53 @@ def load_fichas_medicas_data_by_psicologo(dni_psicologo):
 # Main title with custom background
 st.markdown("""
 <div class="title-container">
-    <h1 class="title-text">🏥 Sistema de Fichas Médicas</h1>
+    <h1 class="title-text"> SISTEMA DE FICHAS MÉDICAS</h1>
 </div>
 """, unsafe_allow_html=True)
 
-# Display authenticated psychologist information
+
+
+# Display authenticated psychologist information and buttons
+# This block will always execute if the user is logged in due to the initial check
 if st.session_state.authenticated_psicologo:
-    st.success(f"🔓 Sesión iniciada como psicólogo DNI: {st.session_state.authenticated_psicologo}")
+    # Con esta versión personalizada:
+    st.markdown(f"""
+    <div style="
+        background-color: #B9D7E0; 
+        color: white; 
+        padding: 1rem; 
+        border-radius: 7px; 
+        border: 2px solid #B9D7E0; 
+        margin-bottom: 1rem;
+        text-align: left;
+        font-weight: normal;
+        box-shadow: 0 2px 4px rgba(0, 29, 74, 0.2);
+    ">
+        🔓 Sesión iniciada como psicólogo DNI: {st.session_state.authenticated_psicologo}
+    </div>
+    """, unsafe_allow_html=True)
     
-    # Button to close session
-    col1, col2 = st.columns([1, 4])
+    # Buttons in the same row with separation
+    col1, col2, col3 = st.columns([2, 1, 2])  # [ancho_izquierda, separación, ancho_derecha]
+    
     with col1:
-        if st.button("🚪 Cerrar Sesión", type="secondary"):
-            st.session_state.logged_in = False
+        if st.button("🚪 Cerrar Sesión", type="secondary", use_container_width=True):
+            st.session_state.logged_in = False # Set logged_in to False
             st.session_state.authenticated_psicologo = None
-            st.session_state.show_form = False
+            st.session_state.show_patient_form = False
+            # Clear user_data and other session state variables related to login
             if 'user_data' in st.session_state:
                 del st.session_state.user_data
-            if 'psicologo_dni' in st.session_state: # Clear if used previously
-                del st.session_state.psicologo_dni
+            # If you used 'psicologo_dni' previously, clear it too
+            if 'psicologo_dni' in st.session_state:
+                del st.session_state.psicologo_dni 
             st.cache_data.clear()
-            st.switch_page("Inicio.py")
+            st.switch_page("Inicio.py") # Redirect to login page
+    
+    # col2 stays empty for separation
 
-# Button for new medical record
-col1, col2 = st.columns([1, 4])
-with col1:
+#col1, col2 = st.columns([1, 4])
+with col3:
     if st.button("➕ Nueva Ficha Médica", type="primary", use_container_width=True):
         st.session_state.show_form = True
 
