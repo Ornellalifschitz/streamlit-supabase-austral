@@ -770,3 +770,16 @@ with col3:
     else:
         st.info("No hay diagnósticos registrados para mostrar.")
 
+with st.sidebar:
+    st.markdown("## Perfil del Psicólogo")
+    st.write(f"**Nombre:** {st.session_state.user_data.get('nombre', 'N/A')}")
+    st.write(f"**DNI:** {st.session_state.user_data.get('dni', 'N/A')}")
+    st.write(f"**Email:** {st.session_state.user_data.get('mail', 'N/A')}")
+
+    #st.markdown("---")
+    col1, col2, col3 = st.columns([1, 2, 1]) # Adjust ratios for desired centering
+    with col2:
+        st.markdown("<br><br><br>", unsafe_allow_html=True)
+        st.image("image-removebg-preview.png", width = 200) # Optional: Add your logo
+    #st.markdown("---")
+

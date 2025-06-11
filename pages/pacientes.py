@@ -590,6 +590,21 @@ if st.session_state.get('show_patient_form', False) and st.session_state.authent
             st.session_state.show_patient_form = False
             st.rerun()
 
+with st.sidebar:
+    st.markdown("## Perfil del Psicólogo")
+    st.write(f"**Nombre:** {st.session_state.user_data.get('nombre', 'N/A')}")
+    st.write(f"**DNI:** {st.session_state.user_data.get('dni', 'N/A')}")
+    st.write(f"**Email:** {st.session_state.user_data.get('mail', 'N/A')}")
+
+    #st.markdown("---")
+    col1, col2, col3 = st.columns([1, 2, 1]) # Adjust ratios for desired centering
+    with col2:
+        st.markdown("<br><br><br>", unsafe_allow_html=True)
+        st.image("image-removebg-preview.png", width = 200) # Optional: Add your logo
+    #st.markdown("---")
+
+
+
 # Display data only if the psychologist is authenticated
 # This block will always execute if the user is logged in
 if st.session_state.authenticated_psicologo:
