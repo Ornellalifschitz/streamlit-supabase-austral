@@ -433,7 +433,7 @@ if 'show_patient_form' not in st.session_state:
     st.session_state.show_patient_form = False
 
 # Function to load data from Supabase filtered by psychologist
-@st.cache_data(ttl=60)  # Cache for 60 seconds
+@st.cache_data(ttl=60, show_spinner=False)  # Cache for 60 seconds
 def load_pacientes_data_by_psicologo(dni_psicologo):
     """Loads patient data from Supabase filtered by psychologist with caching"""
     return get_pacientes_por_psicologo(dni_psicologo)
@@ -493,54 +493,147 @@ if st.session_state.authenticated_psicologo:
 if st.session_state.get('show_patient_form', False) and st.session_state.authenticated_psicologo:
     st.markdown("### 📝 Registrar Nuevo Paciente")
     
-    with st.form("nuevo_paciente_form", clear_on_submit=True):
+    # Inicializar variables de error si no existen
+    if 'form_errors' not in st.session_state:
+        st.session_state.form_errors = {}
+    
+    # Remover clear_on_submit=True para mantener los datos
+    with st.form("nuevo_paciente_form"):
         col1, col2 = st.columns(2)
         
         with col1:
+            # DNI del Paciente con validación visual
+            dni_error = st.session_state.form_errors.get('dni', '')
             dni_paciente = st.text_input(
                 "DNI del Paciente *",
                 placeholder="Ej: 12345678",
-                help="Ingrese el DNI del paciente (8 dígitos sin puntos ni espacios)"
+                help="Ingrese el DNI del paciente (8 dígitos sin puntos ni espacios)",
+                key="dni_input"
             )
+            if dni_error:
+                st.error(f"⚠️ {dni_error}")
             
+            # Nombre del Paciente
+            nombre_error = st.session_state.form_errors.get('nombre', '')
             nombre_paciente = st.text_input(
                 "Nombre *",
                 placeholder="Ej: Juan Carlos Pérez",
-                help="Ingrese el nombre completo del paciente"
+                help="Ingrese el nombre completo del paciente",
+                key="nombre_input"
             )
+            if nombre_error:
+                st.error(f"⚠️ {nombre_error}")
             
+            # Sexo del Paciente
+            sexo_error = st.session_state.form_errors.get('sexo', '')
             sexo_paciente = st.selectbox(
                 "Sexo *",
                 ["", "Masculino", "Femenino", "Otro"],
-                help="Seleccione el sexo del paciente"
+                help="Seleccione el sexo del paciente",
+                key="sexo_input"
             )
+            if sexo_error:
+                st.error(f"⚠️ {sexo_error}")
         
         with col2:
+            # Fecha de Nacimiento
+            fecha_error = st.session_state.form_errors.get('fecha', '')
             fecha_nacimiento = st.date_input(
                 "Fecha de Nacimiento *",
                 value=None,
                 min_value=date(1900, 1, 1),
                 max_value=date.today(),
-                help="Seleccione la fecha de nacimiento"
+                help="Seleccione la fecha de nacimiento",
+                key="fecha_input"
             )
+            if fecha_error:
+                st.error(f"⚠️ {fecha_error}")
             
-            obra_social = st.text_input(
+            # Obra Social (no obligatorio, sin validación)
+            obras_sociales_list = [
+                "",
+                "Sin obra social",
+                "OSDE",
+                "Swiss Medical",
+                "IOMA",
+                "PAMI",
+                "Medicus",
+                "Galeno",
+                "Luis Pasteur",
+                "Hominis",
+                "Unión Personal",
+                "Jerárquicos Salud",
+                "OSDEPYM",
+                "OSECAC",
+                "OSPLAD",
+                "OSPRERA",
+                "OSPECON",
+                "OSPJN",
+                "OSUTHGRA",
+                "OSDE Binario",
+                "OSMATA",
+                "OSPATCA",
+                "OSPAT",
+                "OSPACP",
+                "OSPIT",
+                "OSPAGA",
+                "OSMISS",
+                "OSPROTURA",
+                "ASSPE",
+                "OSDO",
+                "Sancor Salud",
+                "PreMedic",
+                "Accord Salud",
+                "Omint",
+                "Hospital Italiano",
+                "Hospital Alemán",
+                "Federada Salud",
+                "AMFFA",
+                "OSPEDYC",
+                "OSCHOCA",
+                "OSALARA",
+                "OSUNION",
+                "Otra"
+            ]
+            
+            obra_social = st.selectbox(
                 "Obra Social",
-                placeholder="Ej: OSDE, Swiss Medical, IOMA...",
-                help="Ingrese la obra social del paciente"
+                obras_sociales_list,
+                help="Seleccione la obra social del paciente",
+                key="obra_social_input"
             )
             
+            # Si selecciona "Otra", mostrar campo de texto
+            if obra_social == "Otra":
+                obra_social_custom = st.text_input(
+                    "Especificar Obra Social",
+                    placeholder="Ingrese el nombre de la obra social",
+                    key="obra_social_custom_input"
+                )
+                if obra_social_custom:
+                    obra_social = obra_social_custom
+            
+            # Localidad
+            localidad_error = st.session_state.form_errors.get('localidad', '')
             localidad = st.text_input(
                 "Localidad *",
                 placeholder="Ej: Buenos Aires, Córdoba...",
-                help="Ingrese la localidad del paciente"
+                help="Ingrese la localidad del paciente",
+                key="localidad_input"
             )
+            if localidad_error:
+                st.error(f"⚠️ {localidad_error}")
             
+            # Email
+            mail_error = st.session_state.form_errors.get('mail', '')
             mail = st.text_input(
                 "Mail *",
                 placeholder="Ej: ejemplo@email.com",
-                help="Ingrese el email del paciente"
+                help="Ingrese el email del paciente",
+                key="mail_input"
             )
+            if mail_error:
+                st.error(f"⚠️ {mail_error}")
         
         st.markdown("*Campos obligatorios")
         
@@ -555,39 +648,68 @@ if st.session_state.get('show_patient_form', False) and st.session_state.authent
         
         # Process the form
         if submitted:
-            if dni_paciente and nombre_paciente and sexo_paciente and fecha_nacimiento and localidad and mail:
+            # Limpiar errores anteriores
+            st.session_state.form_errors = {}
+            
+            # Validar cada campo individualmente
+            errors_found = False
+            
+            # Validar campos obligatorios
+            if not dni_paciente:
+                st.session_state.form_errors['dni'] = "El DNI es obligatorio"
+                errors_found = True
+            elif not validate_dni_format(dni_paciente):
+                st.session_state.form_errors['dni'] = "El DNI debe tener exactamente 8 dígitos sin puntos ni espacios"
+                errors_found = True
+            elif check_paciente_exists(dni_paciente):
+                st.session_state.form_errors['dni'] = "Ya existe un paciente registrado con este DNI"
+                errors_found = True
+            
+            if not nombre_paciente:
+                st.session_state.form_errors['nombre'] = "El nombre es obligatorio"
+                errors_found = True
+            
+            if not sexo_paciente:
+                st.session_state.form_errors['sexo'] = "El sexo es obligatorio"
+                errors_found = True
+            
+            if not fecha_nacimiento:
+                st.session_state.form_errors['fecha'] = "La fecha de nacimiento es obligatoria"
+                errors_found = True
+            
+            if not localidad:
+                st.session_state.form_errors['localidad'] = "La localidad es obligatoria"
+                errors_found = True
+            
+            if not mail:
+                st.session_state.form_errors['mail'] = "El email es obligatorio"
+                errors_found = True
+            elif "@" not in mail or "." not in mail:
+                st.session_state.form_errors['mail'] = "Ingrese un email válido"
+                errors_found = True
+            
+            # Si no hay errores, proceder con el registro
+            if not errors_found:
+                obra_social_final = obra_social if obra_social else 'Sin obra social'
                 
-                # Validate patient DNI format
-                if not validate_dni_format(dni_paciente):
-                    st.error("⚠️ El DNI del paciente debe tener exactamente 8 dígitos sin puntos ni espacios.")
-                
-                # Check if patient DNI already exists
-                elif check_paciente_exists(dni_paciente):
-                    st.error("⚠️ Ya existe un paciente registrado con este DNI.")
-                
-                # Validate email format
-                elif "@" not in mail or "." not in mail:
-                    st.error("⚠️ Ingrese un email válido.")
-                
+                if add_paciente(dni_paciente, st.session_state.authenticated_psicologo, 
+                              nombre_paciente, sexo_paciente, fecha_nacimiento, 
+                              obra_social_final, localidad, mail):
+                    st.success("✅ ¡Paciente registrado exitosamente!")
+                    st.session_state.show_patient_form = False
+                    st.session_state.form_errors = {}  # Limpiar errores al registrar exitosamente
+                    # Clear cache to reload data
+                    st.cache_data.clear()
+                    st.rerun()
                 else:
-                    # Proceed with registration using the authenticated psychologist's DNI
-                    obra_social_final = obra_social if obra_social else 'Sin obra social'
-                    
-                    if add_paciente(dni_paciente, st.session_state.authenticated_psicologo, 
-                                  nombre_paciente, sexo_paciente, fecha_nacimiento, 
-                                  obra_social_final, localidad, mail):
-                        st.success("✅ ¡Paciente registrado exitosamente!")
-                        st.session_state.show_patient_form = False
-                        # Clear cache to reload data
-                        st.cache_data.clear()
-                        st.rerun()
-                    else:
-                        st.error("❌ Error al registrar el paciente. Intente nuevamente.")
+                    st.error("❌ Error al registrar el paciente. Intente nuevamente.")
             else:
-                st.error("⚠️ Por favor, complete todos los campos obligatorios.")
+                # Si hay errores, hacer rerun para mostrar los errores
+                st.rerun()
         
         if cancelled:
             st.session_state.show_patient_form = False
+            st.session_state.form_errors = {}  # Limpiar errores al cancelar
             st.rerun()
 
 with st.sidebar:
@@ -609,7 +731,7 @@ with st.sidebar:
 # This block will always execute if the user is logged in
 if st.session_state.authenticated_psicologo:
     # Load data from Supabase filtered by the authenticated psychologist
-    with st.spinner("Cargando sus pacientes desde Supabase..."):
+    with st.spinner("Cargando sus pacientes"):
         df_pacientes = load_pacientes_data_by_psicologo(st.session_state.authenticated_psicologo)
 
     if df_pacientes.empty:

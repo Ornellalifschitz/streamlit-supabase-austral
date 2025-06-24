@@ -340,7 +340,7 @@ if 'show_form' not in st.session_state:
     st.session_state.show_form = False
 
 # Function to load data from Supabase filtered by psychologist
-@st.cache_data(ttl=60)  # Cache for 60 seconds
+@st.cache_data(ttl=60, show_spinner=False)  # Cache for 60 seconds
 def load_fichas_medicas_data_by_psicologo(dni_psicologo):
     """Loads medical records data from Supabase filtered by psychologist with caching"""
     return get_fichas_medicas_por_psicologo(dni_psicologo)
@@ -402,33 +402,44 @@ with col3:
 if st.session_state.get('show_form', False):
     st.markdown("### 📝 Registrar Nueva Ficha Médica")
     
+    # Inicializar variables de error si no existen
+    if 'ficha_form_errors' not in st.session_state:
+        st.session_state.ficha_form_errors = {}
+    
     # Get patients for dropdown
     pacientes_list = get_pacientes_for_dropdown(st.session_state.authenticated_psicologo)
-    pacientes_display_options = [""] + [p[0] for p in pacientes_list] # Add empty option
+    pacientes_display_options = [""] + [p[0] for p in pacientes_list]  # Add empty option
     pacientes_dni_map = {p[0]: p[1] for p in pacientes_list}
-
-    with st.form("nueva_ficha_form", clear_on_submit=True):
+    
+    # Remover clear_on_submit=True para mantener los datos
+    with st.form("nueva_ficha_form"):
+        # Dropdown for patient DNI con validación visual
+        paciente_error = st.session_state.ficha_form_errors.get('paciente', '')
         
-        # Dropdown for patient DNI
         if pacientes_display_options:
             selected_paciente_display = st.selectbox(
                 "Seleccione Paciente *",
                 options=pacientes_display_options,
-                help="Seleccione el paciente al que corresponde la ficha médica"
+                help="Seleccione el paciente al que corresponde la ficha médica",
+                key="paciente_select"
             )
             dni_paciente_selected = pacientes_dni_map.get(selected_paciente_display, None)
         else:
             st.warning("No tiene pacientes registrados. Por favor, registre un paciente primero en la sección de Pacientes.")
-            dni_paciente_selected = None # No patient to select
-
+            dni_paciente_selected = None  # No patient to select
+        
+        if paciente_error:
+            st.error(f"⚠️ {paciente_error}")
+        
         col1, col2 = st.columns(2)
         
         with col1:
-            antecedentes_familiares = st.text_area( 
-                "Antecedentes Familiares", # Removed asterisk from UI label
+            antecedentes_familiares = st.text_area(
+                "Antecedentes Familiares",
                 placeholder="Ej: Padre con hipertensión, madre con diabetes...",
                 height=100,
-                help="Describa los antecedentes médicos familiares relevantes"
+                help="Describa los antecedentes médicos familiares relevantes",
+                key="antecedentes_input"
             )
         
         with col2:
@@ -436,16 +447,18 @@ if st.session_state.get('show_form', False):
                 "Medicación Actual",
                 placeholder="Ej: Ibuprofeno 400mg, Omeprazol 20mg...",
                 height=100,
-                help="Liste la medicación actual del paciente"
-            )
-            
-            diagnostico = st.text_input(
-                "Diagnóstico General", # Removed asterisk from UI label
-                placeholder="Ej: Trastorno de ansiedad generalizada, Depresión leve...",
-                help="Ingrese el diagnóstico principal"
+                help="Liste la medicación actual del paciente",
+                key="medicacion_input"
             )
         
-        st.markdown("*Paciente es campo obligatorio.") # Updated message
+        diagnostico = st.text_input(
+            "Diagnóstico General",
+            placeholder="Ej: Trastorno de ansiedad generalizada, Depresión leve...",
+            help="Ingrese el diagnóstico principal",
+            key="diagnostico_input"
+        )
+        
+        st.markdown("*Paciente es campo obligatorio.")
         
         col1, col2, col3 = st.columns([1, 1, 2])
         
@@ -456,33 +469,49 @@ if st.session_state.get('show_form', False):
             cancelled = st.form_submit_button("❌ Cancelar")
         
         if submitted:
+            # Limpiar errores anteriores
+            st.session_state.ficha_form_errors = {}
+            
+            # Validar campos obligatorios
+            errors_found = False
+            
             if not dni_paciente_selected:
-                st.error("⚠️ Por favor, seleccione un paciente.")
-            else:
+                st.session_state.ficha_form_errors['paciente'] = "Debe seleccionar un paciente"
+                errors_found = True
+            
+            # Si no hay errores, proceder con el guardado
+            if not errors_found:
                 # Handle empty strings for database insertion
                 add_result = add_ficha_medica(
                     dni_paciente=dni_paciente_selected,
-                    antecedentes_familiares=antecedentes_familiares, 
-                    medicacion=medicacion if medicacion else 'Ninguna', # Keep existing logic for medicacion
+                    antecedentes_familiares=antecedentes_familiares,
+                    medicacion=medicacion if medicacion else 'Ninguna',  # Keep existing logic for medicacion
                     diagnostico_general=diagnostico
                 )
+                
                 if add_result == "exists":
-                    st.error("⚠️ Este paciente ya cuenta con una ficha médica en el sistema.")
-                elif add_result: # If add_ficha_medica returns True (success)
+                    st.session_state.ficha_form_errors['paciente'] = "Este paciente ya cuenta con una ficha médica en el sistema"
+                    st.rerun()
+                elif add_result:  # If add_ficha_medica returns True (success)
                     st.success("✅ ¡Ficha médica guardada exitosamente!")
                     st.session_state.show_form = False
-                    st.cache_data.clear() # Clear cache to reload data
+                    st.session_state.ficha_form_errors = {}  # Limpiar errores al guardar exitosamente
+                    st.cache_data.clear()  # Clear cache to reload data
                     st.rerun()
-                else: # If add_ficha_medica returns False (database error)
+                else:  # If add_ficha_medica returns False (database error)
                     st.error("❌ Error al guardar la ficha médica. Intente nuevamente.")
+            else:
+                # Si hay errores, hacer rerun para mostrar los errores
+                st.rerun()
         
         if cancelled:
             st.session_state.show_form = False
+            st.session_state.ficha_form_errors = {}  # Limpiar errores al cancelar
             st.rerun()
 
 # Display medical records table if psychologist is authenticated
 if st.session_state.authenticated_psicologo:
-    with st.spinner("Cargando sus fichas médicas desde Supabase..."):
+    with st.spinner("Cargando sus fichas médicas"):
         df_fichas = load_fichas_medicas_data_by_psicologo(st.session_state.authenticated_psicologo)
 
     if df_fichas.empty:

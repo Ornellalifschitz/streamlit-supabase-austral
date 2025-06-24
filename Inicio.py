@@ -728,7 +728,7 @@ def mostrar_formulario_registro():
             localidad = st.text_input("Localidad (opcional)", placeholder="Buenos Aires")
         
         password = st.text_input("Contraseña (mín. 6 caracteres)", type="password")
-        numero_matricula = st.text_input("Número de matrícula (opcional)", placeholder="12345")
+        numero_matricula = st.text_input("Número de matrícula", placeholder="12345")
         fecha_nacimiento = st.date_input("Fecha de nacimiento (opcional)", value=None)
         
         col1, col2 = st.columns(2)
@@ -742,8 +742,8 @@ def mostrar_formulario_registro():
             st.rerun()
         
         if submit:
-            if not all([dni, nombre, mail, password]):
-                st.error("⚠️ Por favor complete todos los campos obligatorios (DNI, nombre, email y contraseña)")
+            if not all([dni, nombre, mail, password,numero_matricula]):
+                st.error("⚠️ Por favor complete todos los campos obligatorios (DNI, nombre, email, contraseña y número de matrícula)")
                 return
             
             with st.spinner("Registrando usuario..."):

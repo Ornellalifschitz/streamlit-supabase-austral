@@ -33,7 +33,7 @@ if not dni_psicologo_logueado:
 
 # --- FUNCIONES DE CARGA DE DATOS ---
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=60, show_spinner=False)
 def cargar_sesiones_psicologo(dni_psicologo):
     """
     Carga sesiones uniéndolas con turnos para filtrar por el DNI del psicólogo,
@@ -65,7 +65,7 @@ def cargar_sesiones_psicologo(dni_psicologo):
         return pd.DataFrame()
     
 
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=60, show_spinner=False)
 def cargar_pacientes_asignados_al_psicologo(dni_psicologo):
     """Carga los pacientes asignados a un psicólogo."""
     if not dni_psicologo: return []
@@ -82,7 +82,7 @@ def cargar_pacientes_asignados_al_psicologo(dni_psicologo):
         st.error(f"Error al cargar pacientes: {e}")
         return []
 
-@st.cache_data(ttl=300)
+@st.cache_data(ttl=300, show_spinner=False)
 def cargar_proximo_turno(dni_psicologo):
     """Carga el próximo turno futuro para el psicólogo."""
     if not dni_psicologo: return None
@@ -111,7 +111,7 @@ def cargar_proximo_turno(dni_psicologo):
         st.error(f"Error al cargar próximo turno: {e}")
         return None
     
-@st.cache_data(ttl=60)
+@st.cache_data(ttl=60, show_spinner=False)
 def cargar_turnos_pendientes(dni_psicologo):
     """
     Carga los turnos de un psicólogo que aún no tienen una sesión registrada.
@@ -258,7 +258,7 @@ if st.session_state.get('show_form', False):
             
             asistencia = st.radio(
                 "Asistencia", 
-                ["asistio", "no_asistio"], # Asegúrate que estos valores coincidan con tu base de datos
+                ["asistio", "no asistio"], # Asegúrate que estos valores coincidan con tu base de datos
                 index=0, 
                 horizontal=True,
                 key="asistencia_radio"
