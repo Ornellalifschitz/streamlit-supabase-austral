@@ -352,7 +352,7 @@ if not df_sesiones.empty:
     col1, col2, col3, col4 = st.columns(4) 
     filtro_paciente = col1.text_input("Buscar por nombre o DNI", key="filtro_paciente")
     # Update filter options to match DB values
-    filtro_asistencia = col2.selectbox("Filtrar por asistencia", ["Todos", "asistio", "no_asistio"], key="filtro_asistencia") 
+    filtro_asistencia = col2.selectbox("Filtrar por asistencia", ["Todos", "asistio", "no asistio"], key="filtro_asistencia") 
     filtro_fecha = col3.date_input("Filtrar por fecha", value=None, key="filtro_fecha")
     # Update filter options to match DB values
     filtro_estado = col4.selectbox("Filtrar por estado", ["Todos", "pendiente", "pago"], key="filtro_estado_sesion") 
