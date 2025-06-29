@@ -177,9 +177,9 @@ def add_ingreso(dni_psicologo, dni_paciente, total_sesion, fecha, sesion, estado
     """
     # Ensure fecha is in 'YYYY-MM-DD' format if it's a date object
     if isinstance(fecha, pd.Timestamp) or isinstance(fecha, pd.Timedelta): # Catch datetime.date or date input from st.date_input
-         fecha_str = fecha.strftime('%Y-%m-%d')
+        fecha_str = fecha.strftime('%Y-%m-%d')
     elif isinstance(fecha, str):
-         fecha_str = fecha # Assume it's already a string in correct format
+        fecha_str = fecha # Assume it's already a string in correct format
     else:
         fecha_str = str(fecha) # Fallback
 
@@ -368,6 +368,27 @@ st.markdown("""
         border-color: #508ca4 !important;
         border-width: 2px !important;
     }
+
+    /* Styles for pending session cards */
+    .pending-card {
+        background-color: #f8f9fa; /* Light grey background */
+        border: 1px solid #ccc;
+        border-left: 5px solid #FFD700; /* Gold left border for pending */
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .pending-card-label {
+        font-weight: bold;
+        color: #222E50; /* Dark primary color */
+    }
+    .pending-card-value {
+        color: #001d4a; /* Dark text color */
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -408,18 +429,6 @@ if st.session_state.authenticated_psicologo:
     
     col1, col2, col3 = st.columns([2, 1, 2])
     
-    #with col1:
-    #    if st.button("🚪 Cerrar Sesión", type="secondary", use_container_width=True):
-    #        st.session_state.logged_in = False
-    #        st.session_state.authenticated_psicologo = None
-    #st.session_state.show_ingreso_form = False # Clear this for the income page
-    #        if 'user_data' in st.session_state:
-    #            del st.session_state.user_data
-    #        if 'psicologo_dni' in st.session_state:
-    #            del st.session_state.psicologo_dni 
-    #        st.cache_data.clear()
-    #        st.switch_page("Inicio.py")
-
     with col1:
         if st.button("➕ Registrar Nuevo Ingreso", type="primary", use_container_width=True):
             st.session_state.show_ingreso_form = True
@@ -532,7 +541,7 @@ if st.session_state.get('show_ingreso_form', False):
                     st.session_state.ingreso_form_errors['sesion_num'] = "El número de sesión debe ser un número entero válido."
                     errors_found = True
             else:
-                 sesion_num = 0 # Default to 0 or None if it's optional and can be null in DB
+                sesion_num = 0 # Default to 0 or None if it's optional and can be null in DB
 
             
             if not errors_found:
@@ -542,7 +551,7 @@ if st.session_state.get('show_ingreso_form', False):
                     total_sesion=total_sesion,
                     fecha=fecha_ingreso,
                     sesion=sesion_num,
-                    estado=estado_ingreso if estado_ingreso else 'Pendiente' # Default if empty
+                    estado=estado_ingreso if estado_ingreso else 'pendiente' # Default if empty, using 'pendiente' lowercase
                 )
                 
                 if add_result:
@@ -595,6 +604,8 @@ if st.session_state.authenticated_psicologo:
             filtro_dni_paciente_ingreso = st.text_input("Buscar por DNI del Paciente", placeholder="Ingrese DNI para filtrar", key="filter_dni_paciente_ingreso")
 
         with col_state_filter:
+            # Convert status to lowercase for consistent filtering
+            df_ingresos['estado'] = df_ingresos['estado'].str.lower()
             estados_unicos = ["Todos"] + sorted(df_ingresos['estado'].unique().tolist())
             filtro_estado = st.selectbox(
                 "Filtrar por Estado",
@@ -630,7 +641,7 @@ if st.session_state.authenticated_psicologo:
         if filtro_dni_paciente_ingreso:
             df_filtrado_ingresos = df_filtrado_ingresos[df_filtrado_ingresos['dni_paciente'].astype(str).str.contains(filtro_dni_paciente_ingreso, na=False)]
 
-        if filtro_estado != "Todos":
+        if filtro_estado != "todos": # Use lowercase for comparison
             df_filtrado_ingresos = df_filtrado_ingresos[df_filtrado_ingresos['estado'] == filtro_estado]
             
         # Apply date filter
@@ -727,7 +738,7 @@ if st.session_state.authenticated_psicologo:
                     </div>
                 </div>
                 """
-            
+                
                 col_card, col_button = st.columns([6, 1]) # Adjust ratios as needed
                 
                 with col_card:
@@ -743,17 +754,17 @@ if st.session_state.authenticated_psicologo:
             for index, row in df_pendientes.iterrows(): # Iterate over original df_pendientes
                 if st.session_state.get(f"clicked_pay_{row['id_ingresos']}", False):
                     with st.spinner(f"Actualizando ingreso {row['id_ingresos']} a 'pago'..."):
-                        update_success = update_ingreso_status(row['id_ingresos'], 'pago')
+                        update_success = update_ingreso_status(row['id_ingresos'], 'pago') # Ensure 'pagado' lowercase
                         if update_success:
-                            st.success(f"✅ Ingreso {row['id_ingresos']} actualizado a 'pago' exitosamente.")
+                            st.success(f"✅ Ingreso {row['id_ingresos']} actualizado a 'pagado' exitosamente.")
                             st.cache_data.clear() # Clear cache to reload updated data
                             st.session_state[f"clicked_pay_{row['id_ingresos']}"] = False # Reset click state
                             st.rerun() # Rerun to refresh the UI
                         else:
                             st.error(f"❌ Error al actualizar ingreso {row['id_ingresos']}.")
                         st.session_state[f"clicked_pay_{row['id_ingresos']}"] = False # Ensure reset even on error
-        
-        # --- END NEW SECTION FOR PENDING SESSIONS ---
+            
+# --- END NEW SECTION FOR PENDING SESSIONS ---
 # ... (rest of your Streamlit code, including the main st.dataframe for all incomes and plots)
 
         # Button to refresh data
@@ -761,9 +772,85 @@ if st.session_state.authenticated_psicologo:
             st.cache_data.clear()
             st.rerun()
 
-        # --- Optional: Basic Plot for Income Over Time ---
+        # --- Donut Chart for Income Status (Paid vs. Pending) ---
         st.markdown("---")
-        st.markdown("### 📊 Gráfico de Ingresos por Fecha")
+        st.markdown("### 📊 Proporción de Ingresos: Pagados vs. Pendientes")
+        if not df_ingresos.empty:
+            # Group by status and sum total_sesion
+            income_status_summary = df_ingresos.groupby('estado')['total_sesion'].sum().reset_index()
+
+            # Define colors, attempting to match the image's aesthetic
+            # Ensure 'pagado' is green, 'pendiente' is blue (or similar)
+            color_map = {
+                'pagado': '#6B8E23',  # OliveDrab (greenish)
+                'pendiente': '#4682B4' # SteelBlue (bluish)
+            }
+            # Handle other states if they exist in your data, assign a default color
+            for status in income_status_summary['estado'].unique():
+                if status not in color_map:
+                    color_map[status] = '#9ACD32' # YellowGreen for others
+
+            fig_donut = go.Figure(data=[go.Pie(
+                labels=income_status_summary['estado'],
+                values=income_status_summary['total_sesion'],
+                hole=.6,  # This creates the donut effect (60% hole)
+                hoverinfo="label+percent+value",
+                textinfo="percent+label",
+                marker=dict(colors=[color_map[s] for s in income_status_summary['estado']]),
+                insidetextorientation="radial" # Orient text radially
+            )])
+
+            fig_donut.update_layout(
+                title_text='Distribución de Ingresos por Estado',
+                title_x=0.5, # Center the title
+                margin=dict(t=50, b=0, l=0, r=0), # Adjust margins for better fit
+                annotations=[dict(text=f'Total:<br>${df_ingresos["total_sesion"].sum():,.0f}',
+                                  x=0.5, y=0.5, font_size=20, showarrow=False)] # Center text
+            )
+            st.plotly_chart(fig_donut, use_container_width=True)
+        else:
+            st.info("No hay datos de ingresos para generar el gráfico de estado.")
+
+        # --- Bar Chart for Income Per Month ---
+        st.markdown("---")
+        st.markdown("### 📈 Gráfico de Ingresos por Mes")
+        if not df_ingresos.empty:
+            # Ensure 'fecha' is datetime object for month extraction
+            df_ingresos_copy = df_ingresos.copy()
+            df_ingresos_copy['fecha'] = pd.to_datetime(df_ingresos_copy['fecha'])
+            
+            # Extract month and year
+            df_ingresos_copy['month_year'] = df_ingresos_copy['fecha'].dt.to_period('M').astype(str)
+            
+            # Aggregate income by month and year
+            income_per_month = df_ingresos_copy.groupby('month_year')['total_sesion'].sum().reset_index()
+            
+            # Sort by month_year to ensure chronological order
+            income_per_month['sort_key'] = pd.to_datetime(income_per_month['month_year'])
+            income_per_month = income_per_month.sort_values('sort_key').drop(columns='sort_key')
+
+            fig_bar = px.bar(
+                income_per_month,
+                x='month_year',
+                y='total_sesion',
+                title='Ingresos Totales por Mes',
+                labels={'month_year': 'Mes y Año', 'total_sesion': 'Monto Total'},
+                color_discrete_sequence=['#4682B4'] # Use a blue color for bars
+            )
+
+            fig_bar.update_layout(
+                xaxis_title="Mes y Año",
+                yaxis_title="Monto Total",
+                hovermode="x unified"
+            )
+            fig_bar.update_traces(texttemplate='$%{y:,.0f}', textposition='outside') # Show values on bars
+            st.plotly_chart(fig_bar, use_container_width=True)
+        else:
+            st.info("No hay datos de ingresos para generar el gráfico mensual.")
+
+        # --- Optional: Basic Plot for Income Over Time (your original line plot) ---
+        st.markdown("---")
+        st.markdown("### 📊 Gráfico de Ingresos por Fecha (Diario)")
         if not df_filtrado_ingresos.empty:
             # Aggregate income by date for plotting
             # Ensure 'fecha' is properly a datetime type for plotting
@@ -780,7 +867,8 @@ if st.session_state.authenticated_psicologo:
                 title='Ingresos Diarios',
                 labels={'fecha': 'Fecha', 'total_sesion': 'Monto Total'},
                 line_shape="linear",
-                markers=True
+                markers=True,
+                color_discrete_sequence=['#068D9D'] # A different color for the line chart
             )
             fig.update_layout(xaxis_title="Fecha", yaxis_title="Monto", hovermode="x unified")
             st.plotly_chart(fig, use_container_width=True)
