@@ -201,6 +201,18 @@ def get_pacientes_for_dropdown(dni_psicologo):
         return [(f"{row['dni_paciente']} - {row['nombre']}", row['dni_paciente']) for _, row in df.iterrows()]
     return []
 
+# NEW FUNCTION: Get patient name by DNI
+@st.cache_data(ttl=300) # Cache for 5 minutes
+def get_patient_name_by_dni(dni_paciente):
+    """
+    Retrieves the patient's name given their DNI.
+    """
+    query = "SELECT nombre FROM pacientes WHERE dni_paciente = %s;"
+    result_df = execute_query(query, params=(dni_paciente,), is_select=True)
+    if not result_df.empty:
+        return result_df.iloc[0]['nombre']
+    return "Paciente Desconocido" # Fallback if name not found
+
 # ============= STREAMLIT CONFIGURATION =============
 
 st.set_page_config(
@@ -257,7 +269,7 @@ st.markdown("""
     .stButton > button:hover {
         background-color: #068D9D !important;
         transform: translateY(-2px) !important;
-        box-shadow: 0 4px 8px rgba(0, 29, 74, 0.3) !important;
+        box_shadow: 0 4px 8px rgba(0, 29, 74, 0.3) !important;
     }
     
     /* Forms */
@@ -266,7 +278,7 @@ st.markdown("""
         padding: 2rem;
         border-radius: 10px;
         border: 2px solid #222E50;
-        box-shadow: 0 4px 6px rgba(80, 140, 164, 0.2);
+        box_shadow: 0 4px 6px rgba(80, 140, 164, 0.2);
     }
     
     /* Text inputs */
@@ -284,7 +296,7 @@ st.markdown("""
     .stSelectbox > div > div > select:focus,
     .stDateInput > div > div > input:focus {
         border-color: #001d4a !important;
-        box-shadow: 0 0 0 2px rgba(0, 29, 74, 0.2) !important;
+        box_shadow: 0 0 0 2px rgba(0, 29, 74, 0.2) !important;
     }
     
     /* Labels */
@@ -373,7 +385,7 @@ st.markdown("""
     .pending-card {
         background-color: #f8f9fa; /* Light grey background */
         border: 1px solid #ccc;
-        border-left: 5px solid #FFD700; /* Gold left border for pending */
+        border-left: 5px solid #C42021; /* Gold left border for pending  CAMBIADO A ROJO ACA*/
         border-radius: 8px;
         padding: 1rem;
         margin-bottom: 1rem;
@@ -427,156 +439,35 @@ if st.session_state.authenticated_psicologo:
     </div>
     """, unsafe_allow_html=True)
     
-    col1, col2, col3 = st.columns([2, 1, 2])
+    #col1, col2, col3 = st.columns([2, 1, 2])
     
-    with col1:
-        if st.button("➕ Registrar Nuevo Ingreso", type="primary", use_container_width=True):
-            st.session_state.show_ingreso_form = True
-
-# Show income form if the button was pressed
-if st.session_state.get('show_ingreso_form', False):
-    st.markdown("### 📝 Registrar Nuevo Ingreso")
-    
-    if 'ingreso_form_errors' not in st.session_state:
-        st.session_state.ingreso_form_errors = {}
-    
-    with st.form("nuevo_ingreso_form"):
-        # Get patients for dropdown
-        pacientes_list = get_pacientes_for_dropdown(st.session_state.authenticated_psicologo)
-        pacientes_display_options = [""] + [p[0] for p in pacientes_list]  # Add empty option
-        pacientes_dni_map = {p[0]: p[1] for p in pacientes_list}
-
-        # Dropdown for patient DNI with validation
-        paciente_error = st.session_state.ingreso_form_errors.get('dni_paciente', '')
-
-        if pacientes_display_options:
-            selected_paciente_display = st.selectbox(
-                "Seleccione Paciente *",
-                options=pacientes_display_options,
-                help="Seleccione el paciente asociado al ingreso",
-                key="paciente_select_ingreso"
-            )
-            dni_paciente_selected = pacientes_dni_map.get(selected_paciente_display, None)
-        else:
-            st.warning("No tiene pacientes registrados. Por favor, registre un paciente primero.")
-            dni_paciente_selected = None  # No patient to select
-
-        if paciente_error:
-            st.error(f"⚠️ {paciente_error}")
-
-        col_date, col_amount = st.columns(2)
-        with col_date:
-            fecha_ingreso = st.date_input(
-                "Fecha del Ingreso *",
-                value="today", # Default to today's date
-                help="Fecha en que se recibió el ingreso",
-                key="fecha_ingreso_input"
-            )
-            
-        with col_amount:
-            total_sesion_str = st.text_input( # Changed from monto_ingreso_str to total_sesion_str
-                "Monto Total de Sesión *", # Changed label to match column purpose
-                placeholder="Ej: 50000.00",
-                help="Monto total de la sesión recibida (ej: 50000.00)",
-                key="total_sesion_input"
-            )
-            if st.session_state.ingreso_form_errors.get('total_sesion', ''):
-                st.error(f"⚠️ {st.session_state.ingreso_form_errors['total_sesion']}")
-
-        # New fields based on schema
-        estado_ingreso = st.text_input(
-            "Estado del Ingreso",
-            placeholder="Ej: Pagado, Pendiente, Cancelado...",
-            help="Estado actual del ingreso",
-            key="estado_ingreso_input"
-        )
-
-        sesion_num_str = st.text_input(
-            "Número de Sesión",
-            placeholder="Ej: 1, 5...",
-            help="Número de sesión asociada a este ingreso (si aplica)",
-            key="sesion_num_input"
-        )
-        if st.session_state.ingreso_form_errors.get('sesion_num', ''):
-            st.error(f"⚠️ {st.session_state.ingreso_form_errors['sesion_num']}")
-        
-        st.markdown("*Campos obligatorios.")
-        
-        col_submit, col_cancel, _ = st.columns([1, 1, 2])
-        
-        with col_submit:
-            submitted = st.form_submit_button("💾 Guardar Ingreso", type="primary")
-        
-        with col_cancel:
-            cancelled = st.form_submit_button("❌ Cancelar")
-        
-        if submitted:
-            st.session_state.ingreso_form_errors = {}
-            errors_found = False
-            
-            # Validate DNI Paciente
-            if not dni_paciente_selected:
-                st.session_state.ingreso_form_errors['dni_paciente'] = "Debe seleccionar un paciente."
-                errors_found = True
-
-            # Validate total_sesion (amount)
-            try:
-                total_sesion = float(total_sesion_str.replace(',', '.')) # Allow comma as decimal separator
-                if total_sesion <= 0:
-                    st.session_state.ingreso_form_errors['total_sesion'] = "El monto de la sesión debe ser un número positivo."
-                    errors_found = True
-            except ValueError:
-                st.session_state.ingreso_form_errors['total_sesion'] = "El monto de la sesión debe ser un número válido."
-                errors_found = True
-
-            # Validate sesion number
-            sesion_num = None
-            if sesion_num_str:
-                try:
-                    sesion_num = int(sesion_num_str)
-                    if sesion_num <= 0:
-                        st.session_state.ingreso_form_errors['sesion_num'] = "El número de sesión debe ser un entero positivo."
-                        errors_found = True
-                except ValueError:
-                    st.session_state.ingreso_form_errors['sesion_num'] = "El número de sesión debe ser un número entero válido."
-                    errors_found = True
-            else:
-                sesion_num = 0 # Default to 0 or None if it's optional and can be null in DB
-
-            
-            if not errors_found:
-                add_result = add_ingreso(
-                    dni_psicologo=st.session_state.authenticated_psicologo,
-                    dni_paciente=dni_paciente_selected,
-                    total_sesion=total_sesion,
-                    fecha=fecha_ingreso,
-                    sesion=sesion_num,
-                    estado=estado_ingreso if estado_ingreso else 'pendiente' # Default if empty, using 'pendiente' lowercase
-                )
-                
-                if add_result:
-                    st.success("✅ ¡Ingreso guardado exitosamente!")
-                    st.session_state.show_ingreso_form = False
-                    st.session_state.ingreso_form_errors = {}
-                    st.cache_data.clear() # Clear cache to reload data
-                    st.rerun()
-                else:
-                    st.error("❌ Error al guardar el ingreso. Intente nuevamente.")
-            else:
-                st.rerun() # Rerun to display validation errors
-        
-        if cancelled:
-            st.session_state.show_ingreso_form = False
-            st.session_state.ingreso_form_errors = {}
-            st.rerun()
+    #with col1:
+    #    if st.button("➕ Registrar Nuevo Ingreso", type="primary", use_container_width=True):
+    #        st.session_state.show_ingreso_form = True
 
 # Display ingresos table if psychologist is authenticated
 if st.session_state.authenticated_psicologo:
     #st.markdown("---") # Add a separator for better visual organization
     st.markdown("### 📈 Resumen y Detalle de Ingresos")
     
-    with st.spinner("Cargando sus ingresos..."):
-        df_ingresos = load_ingresos_data_by_psicologo(st.session_state.authenticated_psicologo)
+    # ELIMINAR ESTE BLOQUE 'with st.spinner':
+    # with st.spinner("Cargando sus ingresos..."):
+    df_ingresos = load_ingresos_data_by_psicologo(st.session_state.authenticated_psicologo)
+        
+    # --- NEW: Fetch patient names and merge with df_ingresos for display ---
+    # This is done here to ensure the merged DataFrame is used for filtering and display
+    if not df_ingresos.empty:
+        # Get unique patient DNIs from the incomes
+        unique_dnis = df_ingresos['dni_paciente'].unique().tolist()
+        
+        # Fetch names for these DNIs
+        patient_names = {dni: get_patient_name_by_dni(dni) for dni in unique_dnis}
+        
+        # Map DNI to patient name in the DataFrame
+        df_ingresos['nombre_paciente'] = df_ingresos['dni_paciente'].map(patient_names)
+    else:
+        df_ingresos['nombre_paciente'] = pd.Series(dtype='str') # Add empty column if df is empty
+
 
     if df_ingresos.empty:
         st.info("ℹ️ No tiene registros de ingresos aún. Use el botón 'Registrar Nuevo Ingreso' para agregar su primer registro.")
@@ -587,7 +478,9 @@ if st.session_state.authenticated_psicologo:
         with col1:
             st.metric("Total de Registros de Ingresos", len(df_ingresos))
         with col2:
-            st.metric("Monto Total Acumulado", f"${df_ingresos['total_sesion'].sum():,.2f}") # Using total_sesion
+            # --- MODIFIED: Calculate "Monto Total Acumulado" only for 'pagado' status ---
+            monto_acumulado_pagado = df_ingresos[df_ingresos['estado'] == 'pago']['total_sesion'].sum()
+            st.metric("Monto Total Acumulado (Pagado)", f"${monto_acumulado_pagado:,.2f}") 
         with col3:
             # Assuming 'fecha' is a date column for latest date
             if 'fecha' in df_ingresos.columns and not df_ingresos.empty:
@@ -597,16 +490,21 @@ if st.session_state.authenticated_psicologo:
         st.markdown('</div>', unsafe_allow_html=True)
 
         # Filters for ingresos
-        st.markdown("#### 🔍 Filtros de Ingresos")
+        st.markdown("#### Filtros de Ingresos")
         col_patient_filter, col_state_filter = st.columns(2)
 
         with col_patient_filter:
-            filtro_dni_paciente_ingreso = st.text_input("Buscar por DNI del Paciente", placeholder="Ingrese DNI para filtrar", key="filter_dni_paciente_ingreso")
+            # --- MODIFIED: Filter by DNI or patient name ---
+            filtro_busqueda_paciente = st.text_input(
+                "Buscar por DNI o Nombre del Paciente", 
+                placeholder="Ingrese DNI o nombre para filtrar", 
+                key="filter_busqueda_paciente_ingreso"
+            )
 
         with col_state_filter:
             # Convert status to lowercase for consistent filtering
             df_ingresos['estado'] = df_ingresos['estado'].str.lower()
-            estados_unicos = ["Todos"] + sorted(df_ingresos['estado'].unique().tolist())
+            estados_unicos = ["todos"] + sorted(df_ingresos['estado'].unique().tolist())
             filtro_estado = st.selectbox(
                 "Filtrar por Estado",
                 estados_unicos,
@@ -614,7 +512,7 @@ if st.session_state.authenticated_psicologo:
             )
             
         # Date range filter
-        st.markdown("#### 📅 Filtrar por Rango de Fechas")
+        st.markdown("#### Filtrar por Rango de Fechas")
         col_start_date, col_end_date = st.columns(2)
         with col_start_date:
             min_date_ingresos = df_ingresos['fecha'].min() if not df_ingresos.empty else None
@@ -638,8 +536,13 @@ if st.session_state.authenticated_psicologo:
         # Apply filters
         df_filtrado_ingresos = df_ingresos.copy()
 
-        if filtro_dni_paciente_ingreso:
-            df_filtrado_ingresos = df_filtrado_ingresos[df_filtrado_ingresos['dni_paciente'].astype(str).str.contains(filtro_dni_paciente_ingreso, na=False)]
+        # --- MODIFIED: Apply filter by DNI or patient name ---
+        if filtro_busqueda_paciente:
+            search_term = filtro_busqueda_paciente.lower()
+            df_filtrado_ingresos = df_filtrado_ingresos[
+                df_filtrado_ingresos['dni_paciente'].astype(str).str.contains(search_term, case=False, na=False) |
+                df_filtrado_ingresos['nombre_paciente'].astype(str).str.contains(search_term, case=False, na=False)
+            ]
 
         if filtro_estado != "todos": # Use lowercase for comparison
             df_filtrado_ingresos = df_filtrado_ingresos[df_filtrado_ingresos['estado'] == filtro_estado]
@@ -651,43 +554,35 @@ if st.session_state.authenticated_psicologo:
                 (df_filtrado_ingresos['fecha'] <= pd.to_datetime(filtro_fecha_fin_ingresos).date())
             ]
 
+        # --- MODIFIED: Configure table display for ingresos - HIDE 'created_at' and 'updated_at' ---
+        # Columns to display in the desired order
+        columns_to_display = [
+            'nombre_paciente', 
+            'dni_paciente', 
+            'estado', 
+            'total_sesion', 
+            'fecha', 
+            'sesion'
+        ]
 
-        # Configure table display for ingresos - adjusted to actual columns
         st.dataframe(
-            df_filtrado_ingresos,
+            df_filtrado_ingresos[columns_to_display], # Select columns in the new order
             use_container_width=True,
             hide_index=True,
             column_config={
-                "id_ingresos": st.column_config.NumberColumn(
-                    "ID Ingreso",
-                    help="Identificador único del registro de ingreso",
-                    format="%d"
-                ),
-                "estado": st.column_config.TextColumn(
-                    "Estado",
-                    help="Estado del ingreso (ej: Pagado, Pendiente)"
-                ),
-                #"created_at": st.column_config.DatetimeColumn(
-                #    "Creado En",
-                #    help="Timestamp de creación del registro",
-                #    format="DD/MM/YYYY HH:mm",
-                #    width="small"
-                #),
-                #"updated_at": st.column_config.DatetimeColumn(
-                #    "Actualizado En",
-                #    help="Última actualización del registro",
-                #    format="DD/MM/YYYY HH:mm",
-                #    width="small"
-                #),
-                "dni_psicologo": st.column_config.TextColumn(
-                    "DNI Psicólogo",
-                    help="DNI del psicólogo asociado al ingreso",
-                    max_chars=50
+                "nombre_paciente": st.column_config.TextColumn( # NEW: Display patient name
+                    "Nombre Paciente",
+                    help="Nombre del paciente asociado al ingreso",
+                    max_chars=100
                 ),
                 "dni_paciente": st.column_config.TextColumn(
                     "DNI Paciente",
                     help="DNI del paciente asociado al ingreso",
                     max_chars=50
+                ),
+                "estado": st.column_config.TextColumn(
+                    "Estado",
+                    help="Estado del ingreso (ej: pago, pendiente)"
                 ),
                 "total_sesion": st.column_config.NumberColumn(
                     "Monto Sesión", # Display label
@@ -704,6 +599,7 @@ if st.session_state.authenticated_psicologo:
                     help="Número de sesión asociada",
                     format="%d"
                 )
+                # Removed 'id_ingresos' and 'dni_psicologo' from column_config as they are no longer displayed
             },
             height=400
         )
@@ -712,8 +608,8 @@ if st.session_state.authenticated_psicologo:
 
 # --- NEW SECTION FOR PENDING SESSIONS ---
 # --- NEW SECTION FOR PENDING SESSIONS WITH STYLING ---
-        st.markdown("---") # Separator
-        st.markdown("### ⏳ Sesiones con Ingresos Pendientes")
+        #st.markdown("---") # Separator
+        st.markdown("### Sesiones con Ingresos Pendientes")
 
         # Filter the main DataFrame for pending sessions
         df_pendientes = df_ingresos[df_ingresos['estado'] == 'pendiente'].copy()
@@ -726,12 +622,11 @@ if st.session_state.authenticated_psicologo:
 
             # Iterate over rows to create a styled card for each pending session
             for index, row in df_pendientes.iterrows():
-                # Define content for each card
+                # --- MODIFIED: Hide ID and show patient name ---
                 card_content = f"""
                 <div class="pending-card">
                     <div style="flex: 1;">
-                        <span class="pending-card-label">ID:</span> <span class="pending-card-value">{row['id_ingresos']}</span><br>
-                        <span class="pending-card-label">Paciente:</span> <span class="pending-card-value">{row['dni_paciente']}</span><br>
+                        <span class="pending-card-label">Paciente:</span> <span class="pending-card-value">{row['nombre_paciente']}</span><br>
                         <span class="pending-card-label">Fecha:</span> <span class="pending-card-value">{row['fecha'].strftime('%d/%m/%Y')}</span><br>
                         <span class="pending-card-label">Monto:</span> <span class="pending-card-value">${row['total_sesion']:,.2f}</span><br>
                         <span class="pending-card-label">Sesión No.:</span> <span class="pending-card-value">{row['sesion']}</span>
@@ -753,16 +648,17 @@ if st.session_state.authenticated_psicologo:
             # Process clicks after all buttons are rendered
             for index, row in df_pendientes.iterrows(): # Iterate over original df_pendientes
                 if st.session_state.get(f"clicked_pay_{row['id_ingresos']}", False):
-                    with st.spinner(f"Actualizando ingreso {row['id_ingresos']} a 'pago'..."):
-                        update_success = update_ingreso_status(row['id_ingresos'], 'pago') # Ensure 'pagado' lowercase
-                        if update_success:
-                            st.success(f"✅ Ingreso {row['id_ingresos']} actualizado a 'pagado' exitosamente.")
-                            st.cache_data.clear() # Clear cache to reload updated data
-                            st.session_state[f"clicked_pay_{row['id_ingresos']}"] = False # Reset click state
-                            st.rerun() # Rerun to refresh the UI
-                        else:
-                            st.error(f"❌ Error al actualizar ingreso {row['id_ingresos']}.")
-                        st.session_state[f"clicked_pay_{row['id_ingresos']}"] = False # Ensure reset even on error
+                    # ELIMINAR ESTE BLOQUE 'with st.spinner':
+                    # with st.spinner(f"Actualizando ingreso {row['id_ingresos']} a 'pago'..."):
+                    update_success = update_ingreso_status(row['id_ingresos'], 'pago') # Ensure 'pagado' lowercase
+                    if update_success:
+                        st.success(f"✅ Ingreso {row['id_ingresos']} actualizado a 'pagado' exitosamente.")
+                        st.cache_data.clear() # Clear cache to reload updated data
+                        st.session_state[f"clicked_pay_{row['id_ingresos']}"] = False # Reset click state
+                        st.rerun() # Rerun to refresh the UI
+                    else:
+                        st.error(f"❌ Error al actualizar ingreso {row['id_ingresos']}.")
+                    st.session_state[f"clicked_pay_{row['id_ingresos']}"] = False # Ensure reset even on error
             
 # --- END NEW SECTION FOR PENDING SESSIONS ---
 # ... (rest of your Streamlit code, including the main st.dataframe for all incomes and plots)
@@ -773,8 +669,8 @@ if st.session_state.authenticated_psicologo:
             st.rerun()
 
         # --- Donut Chart for Income Status (Paid vs. Pending) ---
-        st.markdown("---")
-        st.markdown("### 📊 Proporción de Ingresos: Pagados vs. Pendientes")
+        #st.markdown("---")
+        st.markdown("### Proporción de Ingresos: Pagados vs. Pendientes")
         if not df_ingresos.empty:
             # Group by status and sum total_sesion
             income_status_summary = df_ingresos.groupby('estado')['total_sesion'].sum().reset_index()
@@ -782,13 +678,13 @@ if st.session_state.authenticated_psicologo:
             # Define colors, attempting to match the image's aesthetic
             # Ensure 'pagado' is green, 'pendiente' is blue (or similar)
             color_map = {
-                'pagado': '#6B8E23',  # OliveDrab (greenish)
-                'pendiente': '#4682B4' # SteelBlue (bluish)
+                'pagado': '#068D9D',  # OliveDrab (greenish)
+                'pendiente': '#001D4A' # SteelBlue (bluish)
             }
             # Handle other states if they exist in your data, assign a default color
             for status in income_status_summary['estado'].unique():
                 if status not in color_map:
-                    color_map[status] = '#9ACD32' # YellowGreen for others
+                    color_map[status] = '#068D9D' # YellowGreen for others
 
             fig_donut = go.Figure(data=[go.Pie(
                 labels=income_status_summary['estado'],
@@ -812,8 +708,8 @@ if st.session_state.authenticated_psicologo:
             st.info("No hay datos de ingresos para generar el gráfico de estado.")
 
         # --- Bar Chart for Income Per Month ---
-        st.markdown("---")
-        st.markdown("### 📈 Gráfico de Ingresos por Mes")
+        #st.markdown("---")
+        st.markdown("### Ingresos por Mes")
         if not df_ingresos.empty:
             # Ensure 'fecha' is datetime object for month extraction
             df_ingresos_copy = df_ingresos.copy()
@@ -835,7 +731,7 @@ if st.session_state.authenticated_psicologo:
                 y='total_sesion',
                 title='Ingresos Totales por Mes',
                 labels={'month_year': 'Mes y Año', 'total_sesion': 'Monto Total'},
-                color_discrete_sequence=['#4682B4'] # Use a blue color for bars
+                color_discrete_sequence=['#001D4A'] # Use a blue color for bars
             )
 
             fig_bar.update_layout(
@@ -848,29 +744,15 @@ if st.session_state.authenticated_psicologo:
         else:
             st.info("No hay datos de ingresos para generar el gráfico mensual.")
 
-        # --- Optional: Basic Plot for Income Over Time (your original line plot) ---
-        st.markdown("---")
-        st.markdown("### 📊 Gráfico de Ingresos por Fecha (Diario)")
-        if not df_filtrado_ingresos.empty:
-            # Aggregate income by date for plotting
-            # Ensure 'fecha' is properly a datetime type for plotting
-            # It's already converted to date in get_ingresos_by_psicologo, convert back to datetime for plotly
-            ingresos_por_fecha = df_filtrado_ingresos.copy()
-            ingresos_por_fecha['fecha'] = pd.to_datetime(ingresos_por_fecha['fecha'])
-            
-            ingresos_por_fecha_agg = ingresos_por_fecha.groupby('fecha')['total_sesion'].sum().reset_index()
-            
-            fig = px.line(
-                ingresos_por_fecha_agg,
-                x='fecha',
-                y='total_sesion', # Using total_sesion
-                title='Ingresos Diarios',
-                labels={'fecha': 'Fecha', 'total_sesion': 'Monto Total'},
-                line_shape="linear",
-                markers=True,
-                color_discrete_sequence=['#068D9D'] # A different color for the line chart
-            )
-            fig.update_layout(xaxis_title="Fecha", yaxis_title="Monto", hovermode="x unified")
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("No hay datos suficientes para generar el gráfico con los filtros aplicados.")
+with st.sidebar:
+    st.markdown("## Perfil del Psicólogo")
+    st.write(f"**Nombre:** {st.session_state.user_data.get('nombre', 'N/A')}")
+    st.write(f"**DNI:** {st.session_state.user_data.get('dni', 'N/A')}")
+    st.write(f"**Email:** {st.session_state.user_data.get('mail', 'N/A')}")
+
+    #st.markdown("---")
+    col1, col2, col3 = st.columns([1, 2, 1]) # Adjust ratios for desired centering
+    with col2:
+        st.markdown("<br><br><br>", unsafe_allow_html=True)
+        st.image("image-removebg-preview.png", width = 200) # Optional: Add your logo
+    #st.markdown("---")
