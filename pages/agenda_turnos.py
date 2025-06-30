@@ -175,7 +175,7 @@ st.set_page_config(page_title="Agenda de Turnos", layout="wide", initial_sidebar
 # Ocultar elementos por defecto de Streamlit y aplicar estilos
 hide_streamlit_style = """
 <style>
-    #MainMenu {visibility: hidden;}
+    #MainMenu {visibility: visible;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
     .block-container {
