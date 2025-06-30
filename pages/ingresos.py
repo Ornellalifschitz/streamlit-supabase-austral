@@ -484,9 +484,9 @@ if st.session_state.authenticated_psicologo:
         with col3:
             # Assuming 'fecha' is a date column for latest date
             if 'fecha' in df_ingresos.columns and not df_ingresos.empty:
-                st.metric("Último Ingreso el", df_ingresos['fecha'].max().strftime('%d/%m/%Y'))
+                st.metric("Último Ingreso", df_ingresos['fecha'].max().strftime('%d/%m/%Y'))
             else:
-                st.metric("Último Ingreso el", "N/A")
+                st.metric("Último Ingreso", "N/A")
         st.markdown('</div>', unsafe_allow_html=True)
 
         # Filters for ingresos
