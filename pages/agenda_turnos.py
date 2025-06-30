@@ -176,8 +176,8 @@ st.set_page_config(page_title="Agenda de Turnos", layout="wide", initial_sidebar
 hide_streamlit_style = """
 <style>
     #MainMenu {visibility: visible;}
-    footer {visibility: hidden;}
-    header {visibility: hidden;}
+    footer {visibility: visible;}
+    header {visibility: visible;}
     .block-container {
         padding-top: 1rem;
         padding-bottom: 0rem;
