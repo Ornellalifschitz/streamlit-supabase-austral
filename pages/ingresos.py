@@ -202,7 +202,7 @@ def get_pacientes_for_dropdown(dni_psicologo):
     return []
 
 # NEW FUNCTION: Get patient name by DNI
-@st.cache_data(ttl=300) # Cache for 5 minutes
+@st.cache_data(ttl=300, show_spinner=False) # Cache for 5 minutes
 def get_patient_name_by_dni(dni_paciente):
     """
     Retrieves the patient's name given their DNI.
@@ -642,7 +642,7 @@ if st.session_state.authenticated_psicologo:
                     
                 with col_button:
                     # Place the button within its column
-                    if st.button("Pagar", key=f"pay_btn_{row['id_ingresos']}", type="primary", use_container_width=True):
+                    if st.button("Confirmar pago", key=f"pay_btn_{row['id_ingresos']}", type="primary", use_container_width=True):
                         st.session_state[f"clicked_pay_{row['id_ingresos']}"] = True # Mark as clicked
 
             # Process clicks after all buttons are rendered
